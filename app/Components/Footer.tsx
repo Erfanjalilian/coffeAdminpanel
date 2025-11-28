@@ -2,7 +2,7 @@
 'use client';
 
 export default function AdminFooter() {
-  const currentYear = new Date().getFullYear();
+ 
   
   return (
     <footer className="bg-gray-50 border-t border-gray-100 mt-auto" dir="rtl">
