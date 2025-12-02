@@ -2,6 +2,27 @@
 
 import { useState, useEffect } from 'react';
 
+// Interfaces
+interface Category {
+  seo: {
+    metaKeywords: string[];
+  };
+  _id: string;
+  name: string;
+  slug: string;
+  description: string;
+  images: string;
+  color: string;
+  parent: string | null;
+  order: number;
+  isActive: boolean;
+  showOnHomepage: boolean;
+  productsCount: number;
+  createdAt: string;
+  updatedAt: string;
+  id: string;
+}
+
 interface Product {
   seo: {
     keywords: string[];
@@ -30,7 +51,6 @@ interface Product {
   soldCount: number;
   totalCount: number;
   rating: number;
-  reviews?: number;
   isPrime: boolean;
   isPremium: boolean;
   features: string[];
@@ -48,40 +68,41 @@ interface Product {
     comment: string;
     _id: string;
     createdAt: string;
-    id: string;
   }>;
-  brand?: string;
-  recommended: boolean;
-  relatedProducts: string[];
+  brand: string;
   createdAt: string;
   updatedAt: string;
+  recommended: boolean;
+  relatedProducts: string[];
   priceAfterDiscount: number;
   id: string;
 }
 
-interface NewProduct {
+interface NewProductFormData {
   name: string;
   description: string;
+  positiveFeature: string;
+  category: string;
+  brand: string;
   price: number;
+  stock: number;
   originalPrice: number;
   discount: number;
-  stock: number;
-  category: {
-    _id: string;
-    name: string;
-    slug: string;
-  };
-  badge: string;
-  positiveFeature: string;
-  features: string[];
   weight: number;
   ingredients: string;
   benefits: string;
   howToUse: string;
-  warrantyDuration: number;
+  badge: string;
   warrantyDescription: string;
-  brand?: string;
+  warrantyDuration: number;
   slug: string;
+  features: string[];
+  status: string;
+  type: string;
+  isPrime: boolean;
+  isPremium: boolean;
+  hasWarranty: boolean;
+  recommended: boolean;
 }
 
 interface ProductsResponse {
@@ -98,76 +119,134 @@ interface ProductsResponse {
   };
 }
 
-export default function AllProductsAdmin() {
+interface CategoriesResponse {
+  status: number;
+  success: boolean;
+  data: {
+    categories: Category[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      pages: number;
+    };
+  };
+}
+
+interface ValidationError {
+  path: string;
+  message: string;
+}
+
+interface ErrorResponse {
+  status: number;
+  success: boolean;
+  error: string;
+  data?: ValidationError[];
+}
+
+export default function ProductManager() {
+  // State Management
   const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
-  const [newProduct, setNewProduct] = useState<NewProduct>({
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [featuresInput, setFeaturesInput] = useState('');
+  const [serverErrors, setServerErrors] = useState<ValidationError[]>([]);
+
+  // New product state
+  const [newProduct, setNewProduct] = useState<NewProductFormData>({
     name: '',
     description: '',
+    positiveFeature: '',
+    category: '',
+    brand: '',
     price: 0,
+    stock: 0,
     originalPrice: 0,
     discount: 0,
-    stock: 0,
-    category: {
-      _id: '',
-      name: '',
-      slug: ''
-    },
-    badge: '',
-    positiveFeature: '',
-    features: [],
     weight: 0,
     ingredients: '',
     benefits: '',
     howToUse: '',
-    warrantyDuration: 0,
+    badge: '',
     warrantyDescription: '',
-    brand: '',
+    warrantyDuration: 0,
     slug: '',
+    features: [],
+    status: 'inactive',
+    type: 'regular',
+    isPrime: false,
+    isPremium: false,
+    hasWarranty: false,
+    recommended: false,
   });
-  const [featuresInput, setFeaturesInput] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const API_BASE_URL = 'https://coffee-shop-backend-k3un.onrender.com/api/v1/product';
+  const CATEGORY_API_URL = 'https://coffee-shop-backend-k3un.onrender.com/api/v1/category';
 
-  // Helper functions for generating values
-  const generateRandomId = () => Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-  const generateRandomDate = () => new Date().toISOString();
-
-  // Generate a random user ID like in your API
-  const generateRandomUserId = () => {
-    const prefix = '691b75ecd2d4fd0f55e46b';
-    const suffix = Math.floor(100 + Math.random() * 900);
-    return `${prefix}${suffix}`;
+  // Helper functions
+  const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('fa-IR').format(price) + ' تومان';
   };
 
+  const getDiscountPercentage = (originalPrice: number, currentPrice: number) => {
+    if (!originalPrice || originalPrice <= currentPrice) return 0;
+    return Math.round(((originalPrice - currentPrice) / originalPrice) * 100);
+  };
+
+  // Fetch categories and products on component mount
   useEffect(() => {
+    fetchCategories();
     fetchProducts();
   }, []);
 
+  // Filter products when search term changes
   useEffect(() => {
-    // Filter products based on search term
     if (searchTerm.trim() === '') {
       setFilteredProducts(products);
     } else {
       const filtered = products.filter(product =>
         product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         product.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (product.brand && product.brand.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (product.category && product.category.name.toLowerCase().includes(searchTerm.toLowerCase()))
+        product.brand.toLowerCase().includes(searchTerm.toLowerCase())
       );
       setFilteredProducts(filtered);
     }
   }, [searchTerm, products]);
 
+  const fetchCategories = async () => {
+    try {
+      console.log('=== Fetching Categories ===');
+      const response = await fetch(CATEGORY_API_URL);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch categories: ${response.status}`);
+      }
+      
+      const data: CategoriesResponse = await response.json();
+      console.log('Categories API response:', data);
+      
+      // Extract categories from the nested structure
+      if (data.data && data.data.categories && Array.isArray(data.data.categories)) {
+        setCategories(data.data.categories);
+        console.log('Categories set:', data.data.categories);
+      } else {
+        console.error('Unexpected categories response structure:', data);
+        setCategories([]);
+      }
+    } catch (err) {
+      console.error('Error fetching categories:', err);
+      alert('خطا در دریافت دسته‌بندی‌ها');
+    }
+  };
+
   const fetchProducts = async () => {
     try {
-      setLoading(true);
+      console.log('=== Fetching Products ===');
       const response = await fetch(API_BASE_URL);
       
       if (!response.ok) {
@@ -175,43 +254,196 @@ export default function AllProductsAdmin() {
       }
       
       const data: ProductsResponse = await response.json();
-      setProducts(data.data.products);
-      setFilteredProducts(data.data.products);
+      console.log('Products API response:', data);
+      
+      if (data.data && data.data.products && Array.isArray(data.data.products)) {
+        setProducts(data.data.products);
+        setFilteredProducts(data.data.products);
+        console.log('Products set:', data.data.products.length);
+      } else {
+        console.error('Unexpected products response structure:', data);
+        setProducts([]);
+        setFilteredProducts([]);
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-    } finally {
-      setLoading(false);
+      console.error('Error fetching products:', err);
+      alert('خطا در دریافت محصولات');
     }
   };
 
-  const handleEdit = (product: Product) => {
-    setEditingProduct(product);
-    setShowAddForm(false);
+  // Helper to convert product to FormData
+  const createFormData = (productData: NewProductFormData): FormData => {
+    const formData = new FormData();
+    
+    // Required fields
+    formData.append('name', productData.name);
+    formData.append('description', productData.description || '');
+    formData.append('positiveFeature', productData.positiveFeature || '');
+    formData.append('category', productData.category);
+    formData.append('brand', productData.brand);
+    formData.append('price', productData.price.toString());
+    formData.append('stock', productData.stock.toString());
+    
+    // Optional fields with values
+    if (productData.slug) formData.append('slug', productData.slug);
+    if (productData.originalPrice) formData.append('originalPrice', productData.originalPrice.toString());
+    if (productData.discount) formData.append('discount', productData.discount.toString());
+    if (productData.weight) formData.append('weight', productData.weight.toString());
+    if (productData.ingredients) formData.append('ingredients', productData.ingredients);
+    if (productData.benefits) formData.append('benefits', productData.benefits);
+    if (productData.howToUse) formData.append('howToUse', productData.howToUse);
+    if (productData.badge) formData.append('badge', productData.badge);
+    if (productData.warrantyDescription) formData.append('warrantyDescription', productData.warrantyDescription);
+    if (productData.warrantyDuration) formData.append('warrantyDuration', productData.warrantyDuration.toString());
+    
+    // Features as JSON string (backend can parse array)
+    if (productData.features.length > 0) {
+      formData.append('features', JSON.stringify(productData.features));
+    }
+    
+    // Boolean and enum fields
+    formData.append('status', productData.status);
+    formData.append('type', productData.type);
+    formData.append('isPrime', productData.isPrime.toString());
+    formData.append('isPremium', productData.isPremium.toString());
+    formData.append('hasWarranty', productData.hasWarranty.toString());
+    formData.append('recommended', productData.recommended.toString());
+    
+    return formData;
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('آیا از حذف این محصول اطمینان دارید؟')) {
+  // Add Product Functionality
+  const handleAddProduct = async () => {
+    // Form Validation
+    if (!newProduct.name || !newProduct.price || !newProduct.stock || !newProduct.category || !newProduct.brand) {
+      alert('لطفاً فیلدهای ضروری (نام، قیمت، موجودی، دسته‌بندی، برند) را پر کنید');
       return;
     }
 
-    try {
-      const response = await fetch(`${API_BASE_URL}/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+    if (newProduct.discount < 0 || newProduct.discount > 100) {
+      alert('تخفیف باید بین ۰ تا ۱۰۰ درصد باشد');
+      return;
+    }
 
-      if (!response.ok) {
-        throw new Error(`حذف محصول ناموفق بود: ${response.status}`);
+    // Auto-generate slug from name if not provided
+    const slugToUse = newProduct.slug || newProduct.name
+      .toLowerCase()
+      .replace(/[^\w\u0600-\u06FF]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .replace(/[^a-z0-9-]/g, '');
+
+    const productData = {
+      ...newProduct,
+      slug: slugToUse,
+    };
+
+    try {
+      setIsSubmitting(true);
+      setServerErrors([]);
+
+      console.log('=== START: Add Product Request ===');
+      console.log('Endpoint:', API_BASE_URL);
+      console.log('Method: POST');
+      console.log('Product data:', productData);
+
+      const formData = createFormData(productData);
+      
+      // Log FormData contents
+      console.log('FormData contents:');
+      for (const [key, value] of formData.entries()) {
+        console.log(`${key}:`, value);
       }
 
-      // Remove product from local state
-      setProducts(products.filter(item => item._id !== id));
-      alert('محصول با موفقیت حذف شد');
+      const response = await fetch(API_BASE_URL, {
+        method: 'POST',
+        body: formData,
+      });
+
+      console.log('Response status:', response.status);
+      console.log('Response status text:', response.statusText);
+
+      const responseText = await response.text();
+      console.log('Raw response text:', responseText);
+
+      if (!response.ok) {
+        console.error('Server responded with error:', {
+          status: response.status,
+          statusText: response.statusText,
+          body: responseText
+        });
+        
+        let errorData: ErrorResponse;
+        try {
+          errorData = JSON.parse(responseText);
+          console.log('Parsed error data:', errorData);
+          
+          // Extract validation errors
+          if (errorData.data && Array.isArray(errorData.data)) {
+            setServerErrors(errorData.data);
+            const errorMessages = errorData.data.map(err => 
+              `• ${err.path}: ${err.message}`
+            ).join('\n');
+            alert(`خطا در افزودن محصول:\n\n${errorMessages}`);
+          } else {
+            alert(`افزودن محصول ناموفق بود: ${errorData.error || response.statusText}`);
+          }
+        } catch (e) {
+          console.error('Could not parse error response as JSON:', e);
+          alert(`افزودن محصول ناموفق بود: ${response.status} - ${responseText}`);
+        }
+        
+        throw new Error(`افزودن محصول ناموفق بود: ${response.status}`);
+      }
+
+      console.log('=== END: Add Product Request - SUCCESS ===');
+
+      // Reset form
+      setNewProduct({
+        name: '',
+        description: '',
+        positiveFeature: '',
+        category: '',
+        brand: '',
+        price: 0,
+        stock: 0,
+        originalPrice: 0,
+        discount: 0,
+        weight: 0,
+        ingredients: '',
+        benefits: '',
+        howToUse: '',
+        badge: '',
+        warrantyDescription: '',
+        warrantyDuration: 0,
+        slug: '',
+        features: [],
+        status: 'inactive',
+        type: 'regular',
+        isPrime: false,
+        isPremium: false,
+        hasWarranty: false,
+        recommended: false,
+      });
+      setFeaturesInput('');
+      setServerErrors([]);
+
+      // Refresh products list
+      await fetchProducts();
+      setShowAddForm(false);
+      alert('محصول با موفقیت اضافه شد');
     } catch (err) {
-      alert(`خطا در حذف محصول: ${err instanceof Error ? err.message : 'خطای ناشناخته'}`);
+      console.error('=== Add Product Request - FAILED ===');
+      console.error('Error details:', err);
+    } finally {
+      setIsSubmitting(false);
     }
+  };
+
+  // Edit Product Functionality
+  const handleEdit = (product: Product) => {
+    setEditingProduct(product);
+    setShowAddForm(false);
+    setServerErrors([]);
   };
 
   const handleSaveEdit = async () => {
@@ -219,210 +451,158 @@ export default function AllProductsAdmin() {
 
     try {
       setIsSubmitting(true);
+      setServerErrors([]);
 
-      // Prepare update data
-      const updateData = {
+      const updateData: Partial<NewProductFormData> = {
         name: editingProduct.name,
         description: editingProduct.description,
-        price: editingProduct.price,
-        originalPrice: editingProduct.originalPrice || editingProduct.price,
-        discount: editingProduct.discount,
-        stock: editingProduct.stock,
-        status: editingProduct.status,
-        badge: editingProduct.badge,
         positiveFeature: editingProduct.positiveFeature,
-        isPrime: editingProduct.isPrime,
-        isPremium: editingProduct.isPremium,
-        features: editingProduct.features,
+        category: editingProduct.category?._id || '',
+        brand: editingProduct.brand,
+        price: editingProduct.price,
+        stock: editingProduct.stock,
+        originalPrice: editingProduct.originalPrice,
+        discount: editingProduct.discount,
         weight: editingProduct.weight,
         ingredients: editingProduct.ingredients,
         benefits: editingProduct.benefits,
         howToUse: editingProduct.howToUse,
-        hasWarranty: editingProduct.hasWarranty,
-        warrantyDuration: editingProduct.warrantyDuration,
+        badge: editingProduct.badge,
         warrantyDescription: editingProduct.warrantyDescription,
-        brand: editingProduct.brand || '',
+        warrantyDuration: editingProduct.warrantyDuration,
+        slug: editingProduct.slug,
+        features: editingProduct.features,
+        status: editingProduct.status,
+        type: editingProduct.type,
+        isPrime: editingProduct.isPrime,
+        isPremium: editingProduct.isPremium,
+        hasWarranty: editingProduct.hasWarranty,
         recommended: editingProduct.recommended,
-        category: editingProduct.category,
       };
+
+      console.log('=== START: Edit Product Request ===');
+      console.log('Endpoint:', `${API_BASE_URL}/${editingProduct._id}`);
+      console.log('Method: PATCH');
+      console.log('Product ID:', editingProduct._id);
+      console.log('Update data:', updateData);
+
+      const formData = new FormData();
+      
+      // Append only changed fields
+      Object.entries(updateData).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          if (Array.isArray(value)) {
+            formData.append(key, JSON.stringify(value));
+          } else if (typeof value === 'boolean') {
+            formData.append(key, value.toString());
+          } else {
+            formData.append(key, value.toString());
+          }
+        }
+      });
 
       const response = await fetch(`${API_BASE_URL}/${editingProduct._id}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(updateData),
+        body: formData,
       });
 
+      console.log('Response status:', response.status);
+      console.log('Response status text:', response.statusText);
+
+      const responseText = await response.text();
+      console.log('Raw response text:', responseText);
+
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(`به‌روزرسانی محصول ناموفق بود: ${response.status} - ${errorData.message || ''}`);
+        console.error('Server responded with error:', {
+          status: response.status,
+          statusText: response.statusText,
+          body: responseText
+        });
+        
+        let errorData: ErrorResponse;
+        try {
+          errorData = JSON.parse(responseText);
+          console.log('Parsed error data:', errorData);
+          
+          if (errorData.data && Array.isArray(errorData.data)) {
+            setServerErrors(errorData.data);
+            const errorMessages = errorData.data.map(err => 
+              `• ${err.path}: ${err.message}`
+            ).join('\n');
+            alert(`خطا در ویرایش محصول:\n\n${errorMessages}`);
+          } else {
+            alert(`ویرایش محصول ناموفق بود: ${errorData.error || response.statusText}`);
+          }
+        } catch (e) {
+          console.error('Could not parse error response as JSON:', e);
+          alert(`ویرایش محصول ناموفق بود: ${response.status} - ${responseText}`);
+        }
+        
+        throw new Error(`ویرایش محصول ناموفق بود: ${response.status}`);
       }
 
-      // Refresh products list
-      await fetchProducts();
+      console.log('=== END: Edit Product Request - SUCCESS ===');
+
+      // Update local state
+      setProducts(products.map(item => 
+        item._id === editingProduct._id ? editingProduct : item
+      ));
       setEditingProduct(null);
+      setServerErrors([]);
       alert('محصول با موفقیت به‌روزرسانی شد');
     } catch (err) {
-      alert(`خطا در به‌روزرسانی محصول: ${err instanceof Error ? err.message : 'خطای ناشناخته'}`);
+      console.error('=== Edit Product Request - FAILED ===');
+      console.error('Error details:', err);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleAddProduct = async () => {
+  // Delete Product
+  const handleDelete = async (id: string) => {
+    if (!confirm('آیا از حذف این محصول اطمینان دارید؟')) {
+      return;
+    }
+
     try {
-      setIsSubmitting(true);
+      console.log('=== START: Delete Product Request ===');
+      console.log('Endpoint:', `${API_BASE_URL}/${id}`);
+      console.log('Method: DELETE');
 
-      // Validate required fields
-      if (!newProduct.name || !newProduct.price || !newProduct.stock || !newProduct.category._id || !newProduct.category.name) {
-        alert('لطفاً فیلدهای ضروری (نام، قیمت، موجودی، دسته‌بندی) را پر کنید');
-        return;
-      }
-
-      // Auto-generate slug from name if not provided
-      const slug = newProduct.slug || newProduct.name
-        .toLowerCase()
-        .replace(/[^\w\u0600-\u06FF]+/g, '-')
-        .replace(/^-+|-+$/g, '');
-
-      // Calculate price after discount
-      const priceAfterDiscount = newProduct.originalPrice > 0 
-        ? newProduct.originalPrice - (newProduct.originalPrice * newProduct.discount / 100)
-        : newProduct.price;
-
-      // Generate realistic values based on your API structure
-      const productId = generateRandomId();
-      const currentDate = generateRandomDate();
-      const userId = generateRandomUserId();
-      const reviewId = generateRandomId();
-      
-      // Prepare product data with ALL fields filled
-      const productData = {
-        // User-provided fields
-        name: newProduct.name,
-        description: newProduct.description || 'قهوه اسپرسو ایتالیایی اصل با عطر و طعمی غنی و منحصر به فرد.',
-        price: newProduct.price,
-        originalPrice: newProduct.originalPrice || newProduct.price * 1.1, // 10% more than sale price
-        discount: newProduct.discount || 5,
-        stock: newProduct.stock,
-        category: {
-          _id: newProduct.category._id,
-          name: newProduct.category.name,
-          slug: newProduct.category.slug || 'coffee',
-          id: newProduct.category._id
-        },
-        badge: newProduct.badge || 'پرفروش',
-        positiveFeature: newProduct.positiveFeature || 'کیفیت عالی با قیمت اقتصادی',
-        features: newProduct.features.length > 0 ? newProduct.features : ['حرفه ای'],
-        weight: newProduct.weight || 250,
-        ingredients: newProduct.ingredients || '100٪ دانه عربیکا',
-        benefits: newProduct.benefits || 'افزایش انرژی، بهبود تمرکز',
-        howToUse: newProduct.howToUse || 'در قهوه ساز ریخته و دم کنید',
-        warrantyDuration: newProduct.warrantyDuration || 6,
-        warrantyDescription: newProduct.warrantyDescription || 'گارانتی تجهیزات دم‌آوری 6 ماهه',
-        brand: newProduct.brand || 'Reale Coffee',
-        slug: slug,
-        
-        // Auto-generated fields with realistic values
-        seo: {
-          keywords: [] // Empty array as in your API
-        },
-        status: 'active',
-        type: 'regular',
-        dealType: 'lightning',
-        isPrime: true,
-        isPremium: true,
-        hasWarranty: true,
-        recommended: true,
-        priceAfterDiscount: priceAfterDiscount,
-        
-        // Realistic values matching your API structure
-        images: [`public/images/products/product-${productId.substring(0, 8)}.jpg`],
-        image: `public/images/products/product-${productId.substring(0, 8)}.jpg`,
-        timeLeft: '02:45:30', // Fixed time as in your API
-        soldCount: Math.floor(newProduct.stock * 0.5), // 50% of stock sold
-        totalCount: newProduct.stock * 2, // Double the stock for total count
-        rating: 0,
-        reviews: 0,
-        
-        // User reviews with realistic structure
-        userReviews: [
-          {
-            user: userId,
-            rating: 5,
-            comment: 'عالی بود، خیلی خوشم اومد',
-            _id: reviewId,
-            createdAt: currentDate,
-            id: reviewId
-          }
-        ],
-        
-        // Related products (empty array or with IDs if available)
-        relatedProducts: products.length > 0 ? [products[0]._id] : [],
-        
-        // Dates and IDs
-        createdAt: currentDate,
-        updatedAt: currentDate,
-        _id: productId,
-        id: productId
-      };
-
-      console.log('Sending product data:', JSON.stringify(productData, null, 2));
-
-      const response = await fetch(API_BASE_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(productData),
+      const response = await fetch(`${API_BASE_URL}/${id}`, {
+        method: 'DELETE',
       });
 
-      const responseData = await response.json();
-      
+      console.log('Response status:', response.status);
+      console.log('Response status text:', response.statusText);
+
+      const responseText = await response.text();
+      console.log('Raw response text:', responseText);
+
       if (!response.ok) {
-        console.log('Server error response:', responseData);
-        throw new Error(`افزودن محصول ناموفق بود: ${response.status} - ${JSON.stringify(responseData)}`);
+        let errorMessage = `حذف محصول ناموفق بود: ${response.status}`;
+        try {
+          const errorData = JSON.parse(responseText);
+          errorMessage += ` - ${errorData.error || responseText}`;
+        } catch (e) {
+          errorMessage += ` - ${responseText}`;
+        }
+        throw new Error(errorMessage);
       }
 
-      // Reset form
-      setNewProduct({
-        name: '',
-        description: '',
-        price: 0,
-        originalPrice: 0,
-        discount: 0,
-        stock: 0,
-        category: {
-          _id: '',
-          name: '',
-          slug: ''
-        },
-        badge: '',
-        positiveFeature: '',
-        features: [],
-        weight: 0,
-        ingredients: '',
-        benefits: '',
-        howToUse: '',
-        warrantyDuration: 0,
-        warrantyDescription: '',
-        brand: '',
-        slug: '',
-      });
-      setFeaturesInput('');
+      console.log('=== END: Delete Product Request - SUCCESS ===');
 
-      // Refresh products list
-      await fetchProducts();
-      setShowAddForm(false);
-      alert('محصول با موفقیت اضافه شد');
+      // Remove product from local state
+      setProducts(products.filter(item => item._id !== id));
+      alert('محصول با موفقیت حذف شد');
     } catch (err) {
-      alert(`خطا در اضافه کردن محصول: ${err instanceof Error ? err.message : 'خطای ناشناخته'}`);
-    } finally {
-      setIsSubmitting(false);
+      console.error('=== Delete Product Request - FAILED ===');
+      console.error('Error details:', err);
+      alert(`خطا در حذف محصول: ${err instanceof Error ? err.message : 'خطای ناشناخته'}`);
     }
   };
 
+  // Features Handling
   const addFeature = () => {
     if (featuresInput.trim() && !newProduct.features.includes(featuresInput.trim())) {
       setNewProduct({
@@ -440,44 +620,16 @@ export default function AllProductsAdmin() {
     });
   };
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('fa-IR').format(price) + ' تومان';
-  };
-
-  const getDiscountPercentage = (originalPrice: number, currentPrice: number) => {
-    if (!originalPrice || originalPrice <= currentPrice) return 0;
-    return Math.round(((originalPrice - currentPrice) / originalPrice) * 100);
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex justify-center items-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex justify-center items-center">
-        <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-lg max-w-md text-center">
-          <strong>خطا: </strong> {error}
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div dir="rtl" className="min-h-screen bg-gray-50 py-8">
-      {/* Main Container */}
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl">
         
         {/* Header */}
         <div className="bg-white rounded-2xl shadow-sm p-6 mb-8">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">مدیریت تمام محصولات</h1>
-              <p className="text-gray-600 mt-2 text-sm sm:text-base">مدیریت و ویرایش تمام محصولات فروشگاه</p>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">مدیریت محصولات</h1>
+              <p className="text-gray-600 mt-2 text-sm sm:text-base">مدیریت و ویرایش محصولات فروشگاه</p>
             </div>
             <button
               onClick={() => setShowAddForm(true)}
@@ -503,7 +655,7 @@ export default function AllProductsAdmin() {
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="جستجو بر اساس نام، توضیحات، برند یا دسته‌بندی..."
+                  placeholder="جستجو بر اساس نام، توضیحات یا برند محصول..."
                 />
                 <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
                   <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -530,189 +682,300 @@ export default function AllProductsAdmin() {
           )}
         </div>
 
+        {/* Server Errors Display */}
+        {serverErrors.length > 0 && (
+          <div className="bg-red-50 border border-red-200 rounded-2xl p-6 mb-8">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0">
+                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-red-800 mb-2">خطاهای اعتبارسنجی</h3>
+                <p className="text-red-700 mb-3">سرور با فیلدهای زیر مشکل دارد:</p>
+                <ul className="space-y-2">
+                  {serverErrors.map((error, index) => (
+                    <li key={index} className="flex items-start gap-2">
+                      <span className="text-red-600">•</span>
+                      <div>
+                        <span className="font-medium text-red-800">{error.path}:</span>
+                        <span className="text-red-700 mr-2"> {error.message}</span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-red-600 text-sm mt-3">
+                  خطاهای کامل در کنسول مرورگر لاگ شده‌اند (F12 → Console)
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Add Product Form */}
         {showAddForm && (
           <div className="bg-white rounded-2xl shadow-sm p-6 mb-8">
             <h2 className="text-xl font-semibold mb-6">افزودن محصول جدید</h2>
             <div className="space-y-6">
-              {/* Required Fields */}
+              {/* Required Fields Note */}
               <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
                 <p className="text-sm text-blue-800">
-                  <strong>توجه:</strong> فیلدهای با ستاره (*) اجباری هستند. سایر فیلدها به صورت خودکار با مقادیر واقعی پر می‌شوند.
+                  <strong>توجه:</strong> فیلدهای با ستاره (*) اجباری هستند.
+                </p>
+                <p className="text-sm text-blue-800 mt-1">
+                  تصویر پیش‌فرض به صورت خودکار استفاده می‌شود.
                 </p>
               </div>
 
               {/* Basic Information */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Name */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">نام محصول *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    نام محصول *
+                  </label>
                   <input
                     type="text"
                     value={newProduct.name}
                     onChange={(e) => setNewProduct({...newProduct, name: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      serverErrors.some(e => e.path === 'name') 
+                        ? 'border-red-500' 
+                        : 'border-gray-300'
+                    }`}
                     placeholder="نام محصول را وارد کنید"
                     required
                   />
                 </div>
+
+                {/* Brand */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">اسلاگ (اختیاری)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    برند *
+                  </label>
+                  <input
+                    type="text"
+                    value={newProduct.brand}
+                    onChange={(e) => setNewProduct({...newProduct, brand: e.target.value})}
+                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      serverErrors.some(e => e.path === 'brand') 
+                        ? 'border-red-500' 
+                        : 'border-gray-300'
+                    }`}
+                    placeholder="نام برند"
+                    required
+                  />
+                </div>
+
+                {/* Category */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    دسته‌بندی *
+                  </label>
+                  <select
+                    value={newProduct.category}
+                    onChange={(e) => setNewProduct({...newProduct, category: e.target.value})}
+                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      serverErrors.some(e => e.path === 'category') 
+                        ? 'border-red-500' 
+                        : 'border-gray-300'
+                    }`}
+                    required
+                  >
+                    <option value="">انتخاب دسته‌بندی</option>
+                    {categories.length > 0 ? (
+                      categories.map(category => (
+                        <option key={category._id} value={category._id}>
+                          {category.name}
+                        </option>
+                      ))
+                    ) : (
+                      <option value="" disabled>در حال بارگیری دسته‌بندی‌ها...</option>
+                    )}
+                  </select>
+                </div>
+
+                {/* Slug */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    اسلاگ (اختیاری - از نام تولید می‌شود)
+                  </label>
                   <input
                     type="text"
                     value={newProduct.slug}
                     onChange={(e) => setNewProduct({...newProduct, slug: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      serverErrors.some(e => e.path === 'slug') 
+                        ? 'border-red-500' 
+                        : 'border-gray-300'
+                    }`}
                     placeholder="نامک محصول (به انگلیسی)"
                   />
                 </div>
+
+                {/* Price */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">قیمت اصلی (تومان) *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    قیمت فروش (تومان) *
+                  </label>
                   <input
                     type="number"
-                    value={newProduct.originalPrice || ''}
-                    onChange={(e) => setNewProduct({...newProduct, originalPrice: Number(e.target.value)})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="قیمت اصلی محصول"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">قیمت فروش (تومان) *</label>
-                  <input
-                    type="number"
+                    min="0"
+                    step="1000"
                     value={newProduct.price || ''}
                     onChange={(e) => setNewProduct({...newProduct, price: Number(e.target.value)})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      serverErrors.some(e => e.path === 'price') 
+                        ? 'border-red-500' 
+                        : 'border-gray-300'
+                    }`}
                     placeholder="قیمت فروش محصول"
                     required
                   />
                 </div>
+
+                {/* Original Price */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">تخفیف (%)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    قیمت اصلی (تومان)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1000"
+                    value={newProduct.originalPrice || ''}
+                    onChange={(e) => setNewProduct({...newProduct, originalPrice: Number(e.target.value)})}
+                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      serverErrors.some(e => e.path === 'originalPrice') 
+                        ? 'border-red-500' 
+                        : 'border-gray-300'
+                    }`}
+                    placeholder="قیمت اصلی محصول"
+                  />
+                </div>
+
+                {/* Discount */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    تخفیف (%)
+                  </label>
                   <input
                     type="number"
                     min="0"
                     max="100"
                     value={newProduct.discount || ''}
                     onChange={(e) => setNewProduct({...newProduct, discount: Number(e.target.value)})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      serverErrors.some(e => e.path === 'discount') 
+                        ? 'border-red-500' 
+                        : 'border-gray-300'
+                    }`}
                     placeholder="درصد تخفیف"
                   />
                 </div>
+
+                {/* Stock */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">موجودی *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    موجودی *
+                  </label>
                   <input
                     type="number"
+                    min="0"
                     value={newProduct.stock || ''}
                     onChange={(e) => setNewProduct({...newProduct, stock: Number(e.target.value)})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      serverErrors.some(e => e.path === 'stock') 
+                        ? 'border-red-500' 
+                        : 'border-gray-300'
+                    }`}
                     placeholder="تعداد موجودی"
                     required
                   />
                 </div>
+
+                {/* Weight */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">برند</label>
-                  <input
-                    type="text"
-                    value={newProduct.brand || ''}
-                    onChange={(e) => setNewProduct({...newProduct, brand: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="نام برند"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">وزن (گرم)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    وزن (گرم)
+                  </label>
                   <input
                     type="number"
+                    min="0"
                     value={newProduct.weight || ''}
                     onChange={(e) => setNewProduct({...newProduct, weight: Number(e.target.value)})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      serverErrors.some(e => e.path === 'weight') 
+                        ? 'border-red-500' 
+                        : 'border-gray-300'
+                    }`}
                     placeholder="وزن محصول"
                   />
                 </div>
-              </div>
 
-              {/* Category Information */}
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">اطلاعات دسته‌بندی *</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">شناسه دسته‌بندی *</label>
-                    <input
-                      type="text"
-                      value={newProduct.category._id}
-                      onChange={(e) => setNewProduct({
-                        ...newProduct,
-                        category: {
-                          ...newProduct.category,
-                          _id: e.target.value
-                        }
-                      })}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="مثال: 691ca406b352811ec2947020"
-                      required
-                    />
-                    <p className="text-xs text-gray-500 mt-1">شناسه یکتای دسته‌بندی</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">نام دسته‌بندی *</label>
-                    <input
-                      type="text"
-                      value={newProduct.category.name}
-                      onChange={(e) => setNewProduct({
-                        ...newProduct,
-                        category: {
-                          ...newProduct.category,
-                          name: e.target.value
-                        }
-                      })}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="مثال: موشیدنی خودت رو بخر"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">اسلاگ دسته‌بندی</label>
-                    <input
-                      type="text"
-                      value={newProduct.category.slug}
-                      onChange={(e) => setNewProduct({
-                        ...newProduct,
-                        category: {
-                          ...newProduct.category,
-                          slug: e.target.value
-                        }
-                      })}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="مثال: coffee"
-                    />
-                  </div>
+                {/* Positive Feature */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    ویژگی مثبت *
+                  </label>
+                  <input
+                    type="text"
+                    value={newProduct.positiveFeature}
+                    onChange={(e) => setNewProduct({...newProduct, positiveFeature: e.target.value})}
+                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      serverErrors.some(e => e.path === 'positiveFeature') 
+                        ? 'border-red-500' 
+                        : 'border-gray-300'
+                    }`}
+                    placeholder="ویژگی مثبت محصول"
+                    required
+                  />
                 </div>
-                <div className="mt-4 p-3 bg-blue-50 rounded-md">
-                  <p className="text-sm text-blue-800">
-                    <strong>راهنما:</strong> از محصولات موجود می‌توانید اطلاعات دسته‌بندی را کپی کنید. به مثال زیر توجه کنید:
-                  </p>
-                  <p className="text-xs text-blue-600 mt-1">
-                    شناسه: <code>691ca406b352811ec2947020</code> | نام: <code>موشیدنی خودت رو بخر</code> | اسلاگ: <code>coffee</code>
-                  </p>
+
+                {/* Badge */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    نوع برچسب
+                  </label>
+                  <input
+                    type="text"
+                    value={newProduct.badge}
+                    onChange={(e) => setNewProduct({...newProduct, badge: e.target.value})}
+                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      serverErrors.some(e => e.path === 'badge') 
+                        ? 'border-red-500' 
+                        : 'border-gray-300'
+                    }`}
+                    placeholder="مثال: پرفروش"
+                  />
                 </div>
               </div>
 
               {/* Description */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">توضیحات محصول</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  توضیحات محصول *
+                </label>
                 <textarea
                   value={newProduct.description}
                   onChange={(e) => setNewProduct({...newProduct, description: e.target.value})}
                   rows={4}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                    serverErrors.some(e => e.path === 'description') 
+                      ? 'border-red-500' 
+                      : 'border-gray-300'
+                  }`}
                   placeholder="توضیحات کامل محصول"
+                  required
                 />
               </div>
 
               {/* Features */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">ویژگی‌های محصول</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  ویژگی‌های محصول
+                </label>
                 <div className="flex gap-2 mb-2">
                   <input
                     type="text"
@@ -753,8 +1016,11 @@ export default function AllProductsAdmin() {
 
               {/* Additional Fields */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Ingredients */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">مواد تشکیل‌دهنده</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    مواد تشکیل‌دهنده
+                  </label>
                   <input
                     type="text"
                     value={newProduct.ingredients}
@@ -763,8 +1029,12 @@ export default function AllProductsAdmin() {
                     placeholder="مواد تشکیل‌دهنده محصول"
                   />
                 </div>
+
+                {/* Benefits */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">فواید</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    فواید
+                  </label>
                   <input
                     type="text"
                     value={newProduct.benefits}
@@ -773,8 +1043,12 @@ export default function AllProductsAdmin() {
                     placeholder="فواید محصول"
                   />
                 </div>
+
+                {/* How to Use */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">نحوه استفاده</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    نحوه استفاده
+                  </label>
                   <input
                     type="text"
                     value={newProduct.howToUse}
@@ -783,28 +1057,27 @@ export default function AllProductsAdmin() {
                     placeholder="نحوه استفاده از محصول"
                   />
                 </div>
+
+                {/* Warranty Duration */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">ویژگی مثبت</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    مدت گارانتی (ماه)
+                  </label>
                   <input
-                    type="text"
-                    value={newProduct.positiveFeature}
-                    onChange={(e) => setNewProduct({...newProduct, positiveFeature: e.target.value})}
+                    type="number"
+                    min="0"
+                    value={newProduct.warrantyDuration || ''}
+                    onChange={(e) => setNewProduct({...newProduct, warrantyDuration: Number(e.target.value)})}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="ویژگی مثبت محصول"
+                    placeholder="مدت گارانتی"
                   />
                 </div>
+
+                {/* Warranty Description */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">نوع برچسب</label>
-                  <input
-                    type="text"
-                    value={newProduct.badge}
-                    onChange={(e) => setNewProduct({...newProduct, badge: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="مثال: پرفروش"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">توضیحات گارانتی</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    توضیحات گارانتی
+                  </label>
                   <input
                     type="text"
                     value={newProduct.warrantyDescription}
@@ -813,47 +1086,105 @@ export default function AllProductsAdmin() {
                     placeholder="توضیحات گارانتی محصول"
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">مدت گارانتی (ماه)</label>
-                  <input
-                    type="number"
-                    value={newProduct.warrantyDuration || ''}
-                    onChange={(e) => setNewProduct({...newProduct, warrantyDuration: Number(e.target.value)})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="مدت گارانتی"
-                  />
-                </div>
-              </div>
 
-              {/* Auto-generated fields info */}
-              <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-                <p className="text-sm text-green-800 mb-2">
-                  <strong>فیلدهای خودکار:</strong> فیلدهای زیر به صورت خودکار با مقادیر واقعی پر می‌شوند:
-                </p>
-                <ul className="text-xs text-green-700 list-disc list-inside space-y-1">
-                  <li>تصاویر: آدرس تصویر واقعی</li>
-                  <li>زمان باقی‌مانده: 02:45:30</li>
-                  <li>فروخته شده: 50% موجودی</li>
-                  <li>تعداد کل: دو برابر موجودی</li>
-                  <li>نظرات کاربران: یک نظر نمونه 5 ستاره</li>
-                  <li>محصولات مرتبط: اولین محصول موجود</li>
-                  <li>SEO: آرایه خالی</li>
-                  <li>وضعیت: فعال</li>
-                  <li>پرایم/پریمیوم/گارانتی/پیشنهادی: فعال</li>
-                </ul>
+                {/* Type */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    نوع محصول
+                  </label>
+                  <select
+                    value={newProduct.type}
+                    onChange={(e) => setNewProduct({...newProduct, type: e.target.value})}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="regular">معمولی</option>
+                    <option value="discount">تخفیف‌دار</option>
+                    <option value="premium">پریمیوم</option>
+                  </select>
+                </div>
+
+                {/* Status */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    وضعیت
+                  </label>
+                  <select
+                    value={newProduct.status}
+                    onChange={(e) => setNewProduct({...newProduct, status: e.target.value})}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="inactive">غیرفعال</option>
+                    <option value="active">فعال</option>
+                  </select>
+                </div>
+
+                {/* Boolean Fields */}
+                <div className="space-y-4">
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="isPrime"
+                      checked={newProduct.isPrime}
+                      onChange={(e) => setNewProduct({...newProduct, isPrime: e.target.checked})}
+                      className="h-4 w-4 text-blue-600 rounded ml-2"
+                    />
+                    <label htmlFor="isPrime" className="text-sm text-gray-700">
+                      محصول پرایم
+                    </label>
+                  </div>
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="isPremium"
+                      checked={newProduct.isPremium}
+                      onChange={(e) => setNewProduct({...newProduct, isPremium: e.target.checked})}
+                      className="h-4 w-4 text-blue-600 rounded ml-2"
+                    />
+                    <label htmlFor="isPremium" className="text-sm text-gray-700">
+                      محصول پریمیوم
+                    </label>
+                  </div>
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="hasWarranty"
+                      checked={newProduct.hasWarranty}
+                      onChange={(e) => setNewProduct({...newProduct, hasWarranty: e.target.checked})}
+                      className="h-4 w-4 text-blue-600 rounded ml-2"
+                    />
+                    <label htmlFor="hasWarranty" className="text-sm text-gray-700">
+                      دارای گارانتی
+                    </label>
+                  </div>
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="recommended"
+                      checked={newProduct.recommended}
+                      onChange={(e) => setNewProduct({...newProduct, recommended: e.target.checked})}
+                      className="h-4 w-4 text-blue-600 rounded ml-2"
+                    />
+                    <label htmlFor="recommended" className="text-sm text-gray-700">
+                      پیشنهاد شده
+                    </label>
+                  </div>
+                </div>
               </div>
             </div>
             
             <div className="flex gap-3 flex-col sm:flex-row mt-8">
               <button
                 onClick={handleAddProduct}
-                disabled={isSubmitting || !newProduct.name || !newProduct.price || !newProduct.stock || !newProduct.category._id || !newProduct.category.name}
+                disabled={isSubmitting || !newProduct.name || !newProduct.price || !newProduct.stock || !newProduct.category || !newProduct.brand || !newProduct.description || !newProduct.positiveFeature}
                 className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-8 py-3 rounded-lg font-semibold transition-colors flex-1"
               >
                 {isSubmitting ? 'در حال ذخیره...' : 'ذخیره محصول'}
               </button>
               <button
-                onClick={() => setShowAddForm(false)}
+                onClick={() => {
+                  setShowAddForm(false);
+                  setServerErrors([]);
+                }}
                 disabled={isSubmitting}
                 className="bg-gray-500 hover:bg-gray-600 disabled:bg-gray-400 text-white px-8 py-3 rounded-lg font-semibold transition-colors flex-1"
               >
@@ -867,7 +1198,22 @@ export default function AllProductsAdmin() {
         {editingProduct && (
           <div className="bg-white rounded-2xl shadow-sm p-6 mb-8">
             <h2 className="text-xl font-semibold mb-6">ویرایش محصول</h2>
+            
+            {serverErrors.length > 0 && (
+              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                <h3 className="text-red-800 font-medium mb-2">خطاهای اعتبارسنجی:</h3>
+                <ul className="space-y-1">
+                  {serverErrors.map((error, index) => (
+                    <li key={index} className="text-red-700">
+                      • <span className="font-medium">{error.path}</span>: {error.message}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+              {/* Name */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">نام محصول</label>
                 <input
@@ -877,9 +1223,33 @@ export default function AllProductsAdmin() {
                     ...editingProduct,
                     name: e.target.value
                   })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                    serverErrors.some(e => e.path === 'name') 
+                      ? 'border-red-500' 
+                      : 'border-gray-300'
+                  }`}
                 />
               </div>
+
+              {/* Brand */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">برند</label>
+                <input
+                  type="text"
+                  value={editingProduct.brand}
+                  onChange={(e) => setEditingProduct({
+                    ...editingProduct,
+                    brand: e.target.value
+                  })}
+                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                    serverErrors.some(e => e.path === 'brand') 
+                      ? 'border-red-500' 
+                      : 'border-gray-300'
+                  }`}
+                />
+              </div>
+
+              {/* Price */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">قیمت فروش (تومان)</label>
                 <input
@@ -889,21 +1259,33 @@ export default function AllProductsAdmin() {
                     ...editingProduct,
                     price: Number(e.target.value)
                   })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                    serverErrors.some(e => e.path === 'price') 
+                      ? 'border-red-500' 
+                      : 'border-gray-300'
+                  }`}
                 />
               </div>
+
+              {/* Original Price */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">قیمت اصلی (تومان)</label>
                 <input
                   type="number"
-                  value={editingProduct.originalPrice || editingProduct.price}
+                  value={editingProduct.originalPrice}
                   onChange={(e) => setEditingProduct({
                     ...editingProduct,
                     originalPrice: Number(e.target.value)
                   })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                    serverErrors.some(e => e.path === 'originalPrice') 
+                      ? 'border-red-500' 
+                      : 'border-gray-300'
+                  }`}
                 />
               </div>
+
+              {/* Stock */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">موجودی</label>
                 <input
@@ -913,21 +1295,15 @@ export default function AllProductsAdmin() {
                     ...editingProduct,
                     stock: Number(e.target.value)
                   })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                    serverErrors.some(e => e.path === 'stock') 
+                      ? 'border-red-500' 
+                      : 'border-gray-300'
+                  }`}
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">برند</label>
-                <input
-                  type="text"
-                  value={editingProduct.brand || ''}
-                  onChange={(e) => setEditingProduct({
-                    ...editingProduct,
-                    brand: e.target.value
-                  })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
+
+              {/* Discount */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">تخفیف (%)</label>
                 <input
@@ -939,44 +1315,131 @@ export default function AllProductsAdmin() {
                     ...editingProduct,
                     discount: Number(e.target.value)
                   })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                    serverErrors.some(e => e.path === 'discount') 
+                      ? 'border-red-500' 
+                      : 'border-gray-300'
+                  }`}
                 />
               </div>
-              {editingProduct.category && (
-                <>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">شناسه دسته‌بندی</label>
-                    <input
-                      type="text"
-                      value={editingProduct.category._id}
-                      onChange={(e) => setEditingProduct({
-                        ...editingProduct,
-                        category: {
-                          ...editingProduct.category!,
-                          _id: e.target.value
-                        }
-                      })}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">نام دسته‌بندی</label>
-                    <input
-                      type="text"
-                      value={editingProduct.category.name}
-                      onChange={(e) => setEditingProduct({
-                        ...editingProduct,
-                        category: {
-                          ...editingProduct.category!,
-                          name: e.target.value
-                        }
-                      })}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                </>
-              )}
+
+              {/* Category */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">دسته‌بندی</label>
+                <select
+                  value={editingProduct.category?._id || ''}
+                  onChange={(e) => setEditingProduct({
+                    ...editingProduct,
+                    category: categories.find(cat => cat._id === e.target.value) || null
+                  })}
+                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                    serverErrors.some(e => e.path === 'category') 
+                      ? 'border-red-500' 
+                      : 'border-gray-300'
+                  }`}
+                >
+                  <option value="">انتخاب دسته‌بندی</option>
+                  {categories.length > 0 ? (
+                    categories.map(category => (
+                      <option key={category._id} value={category._id}>
+                        {category.name}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="" disabled>در حال بارگیری دسته‌بندی‌ها...</option>
+                  )}
+                </select>
+              </div>
+
+              {/* Positive Feature */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">ویژگی مثبت</label>
+                <input
+                  type="text"
+                  value={editingProduct.positiveFeature}
+                  onChange={(e) => setEditingProduct({
+                    ...editingProduct,
+                    positiveFeature: e.target.value
+                  })}
+                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                    serverErrors.some(e => e.path === 'positiveFeature') 
+                      ? 'border-red-500' 
+                      : 'border-gray-300'
+                  }`}
+                />
+              </div>
+
+              {/* Slug */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">اسلاگ</label>
+                <input
+                  type="text"
+                  value={editingProduct.slug}
+                  onChange={(e) => setEditingProduct({
+                    ...editingProduct,
+                    slug: e.target.value
+                  })}
+                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                    serverErrors.some(e => e.path === 'slug') 
+                      ? 'border-red-500' 
+                      : 'border-gray-300'
+                  }`}
+                />
+              </div>
+
+              {/* Weight */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">وزن (گرم)</label>
+                <input
+                  type="number"
+                  value={editingProduct.weight}
+                  onChange={(e) => setEditingProduct({
+                    ...editingProduct,
+                    weight: Number(e.target.value)
+                  })}
+                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                    serverErrors.some(e => e.path === 'weight') 
+                      ? 'border-red-500' 
+                      : 'border-gray-300'
+                  }`}
+                />
+              </div>
+
+              {/* Status */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">وضعیت</label>
+                <select
+                  value={editingProduct.status}
+                  onChange={(e) => setEditingProduct({
+                    ...editingProduct,
+                    status: e.target.value
+                  })}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="inactive">غیرفعال</option>
+                  <option value="active">فعال</option>
+                </select>
+              </div>
+
+              {/* Type */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">نوع محصول</label>
+                <select
+                  value={editingProduct.type}
+                  onChange={(e) => setEditingProduct({
+                    ...editingProduct,
+                    type: e.target.value
+                  })}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="regular">معمولی</option>
+                  <option value="discount">تخفیف‌دار</option>
+                  <option value="premium">پریمیوم</option>
+                </select>
+              </div>
             </div>
+
+            {/* Description */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">توضیحات</label>
               <textarea
@@ -986,9 +1449,14 @@ export default function AllProductsAdmin() {
                   description: e.target.value
                 })}
                 rows={4}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-6"
+                className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-6 ${
+                  serverErrors.some(e => e.path === 'description') 
+                    ? 'border-red-500' 
+                    : 'border-gray-300'
+                }`}
               />
             </div>
+
             <div className="flex gap-3 flex-col sm:flex-row">
               <button
                 onClick={handleSaveEdit}
@@ -998,7 +1466,10 @@ export default function AllProductsAdmin() {
                 {isSubmitting ? 'در حال ذخیره...' : 'ذخیره تغییرات'}
               </button>
               <button
-                onClick={() => setEditingProduct(null)}
+                onClick={() => {
+                  setEditingProduct(null);
+                  setServerErrors([]);
+                }}
                 disabled={isSubmitting}
                 className="bg-gray-500 hover:bg-gray-600 disabled:bg-gray-400 text-white px-8 py-3 rounded-lg font-semibold transition-colors flex-1"
               >
@@ -1008,16 +1479,16 @@ export default function AllProductsAdmin() {
           </div>
         )}
 
-        {/* Products List - Amazon Style */}
+        {/* Products List */}
         <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
           {/* List Header */}
           <div className="border-b border-gray-200 bg-gray-50 px-6 py-4">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <h2 className="text-lg font-semibold text-gray-900">
-                لیست تمام محصولات ({filteredProducts.length})
+                لیست محصولات ({filteredProducts.length})
               </h2>
               <div className="text-sm text-gray-600">
-                صفحه {1} از {1} - کل محصولات: {products.length}
+                کل محصولات: {products.length}
               </div>
             </div>
           </div>
@@ -1047,7 +1518,7 @@ export default function AllProductsAdmin() {
                         <svg className="w-12 h-12 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                         </svg>
-                        <span className="text-sm">تصویر محصول</span>
+                        <span className="text-sm">تصویر پیش‌فرض</span>
                       </div>
                     </div>
                   </div>
@@ -1070,15 +1541,10 @@ export default function AllProductsAdmin() {
                           </div>
                         </div>
                         
-                        {product.brand && (
-                          <p className="text-gray-600 mb-2">برند: <span className="font-medium">{product.brand}</span></p>
-                        )}
+                        <p className="text-gray-600 mb-2">برند: <span className="font-medium">{product.brand}</span></p>
 
                         {product.category && (
-                          <div className="mb-3">
-                            <p className="text-gray-600">دسته‌بندی: <span className="font-medium">{product.category.name}</span></p>
-                            <p className="text-xs text-gray-500 mt-1">شناسه: {product.category._id}</p>
-                          </div>
+                          <p className="text-gray-600 mb-3">دسته‌بندی: <span className="font-medium">{product.category.name}</span></p>
                         )}
 
                         {/* Price and Stock */}
@@ -1087,7 +1553,7 @@ export default function AllProductsAdmin() {
                             <span className="text-2xl font-bold text-green-600">
                               {formatPrice(product.priceAfterDiscount)}
                             </span>
-                            {product.discount > 0 && (
+                            {product.discount > 0 && product.originalPrice > product.priceAfterDiscount && (
                               <span className="text-lg text-gray-500 line-through">
                                 {formatPrice(product.originalPrice)}
                               </span>
@@ -1122,7 +1588,7 @@ export default function AllProductsAdmin() {
                             ))}
                           </div>
                           <span className="text-sm text-gray-600">
-                            {product.rating} ({product.reviews || product.userReviews.length} نظر)
+                            {product.rating} ({product.userReviews.length} نظر)
                           </span>
                         </div>
 
@@ -1131,11 +1597,16 @@ export default function AllProductsAdmin() {
                           <div className="mb-3">
                             <span className="text-sm text-gray-700 font-medium mb-2 block">ویژگی‌ها:</span>
                             <div className="flex flex-wrap gap-2">
-                              {product.features.map((feature, index) => (
+                              {product.features.slice(0, 3).map((feature, index) => (
                                 <span key={index} className="bg-blue-100 text-blue-800 text-sm px-3 py-1 rounded-full">
                                   {feature}
                                 </span>
                               ))}
+                              {product.features.length > 3 && (
+                                <span className="bg-gray-100 text-gray-800 text-sm px-3 py-1 rounded-full">
+                                  +{product.features.length - 3} بیشتر
+                                </span>
+                              )}
                             </div>
                           </div>
                         )}
@@ -1188,7 +1659,7 @@ export default function AllProductsAdmin() {
         </div>
 
         {/* Empty State */}
-        {filteredProducts.length === 0 && !loading && (
+        {filteredProducts.length === 0 && (
           <div className="bg-white rounded-2xl shadow-sm p-12 text-center">
             <svg className="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
