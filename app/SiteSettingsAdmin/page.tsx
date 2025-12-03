@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 
 interface Category {
   seo: {
+    metaTitle?: string;
+    metaDescription?: string;
     metaKeywords: string[];
   };
   _id: string;
@@ -36,6 +38,14 @@ interface CategoriesResponse {
   };
 }
 
+interface ApiError {
+  status: number;
+  success: boolean;
+  error: {
+    message: string;
+  };
+}
+
 export default function SiteSettingsAdmin() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,6 +53,8 @@ export default function SiteSettingsAdmin() {
   const [activeTab, setActiveTab] = useState<'categories' | 'general' | 'contact' | 'footer'>('categories');
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   // Static site settings state
   const [siteSettings, setSiteSettings] = useState({
@@ -66,9 +78,16 @@ export default function SiteSettingsAdmin() {
     slug: '',
     description: '',
     color: '#8B4513',
+    parent: '',
     order: 0,
     isActive: true,
-    showOnHomepage: false
+    showOnHomepage: false,
+    seo: {
+      metaTitle: '',
+      metaDescription: '',
+      metaKeywords: [] as string[],
+    },
+    images: '/images/categories/default.jpg'
   });
 
   useEffect(() => {
@@ -78,90 +97,261 @@ export default function SiteSettingsAdmin() {
   const fetchCategories = async () => {
     try {
       setLoading(true);
+      setError(null);
       const response = await fetch('https://coffee-shop-backend-k3un.onrender.com/api/v1/category');
       
       if (!response.ok) {
-        throw new Error('Failed to fetch categories');
+        throw new Error(`خطا در دریافت دسته‌بندی‌ها: ${response.status}`);
       }
       
       const data: CategoriesResponse = await response.json();
-      setCategories(data.data.categories);
+      if (data.success && data.data) {
+        setCategories(data.data.categories);
+      } else {
+        throw new Error('پاسخ نامعتبر از سرور');
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      setError(err instanceof Error ? err.message : 'خطای ناشناخته');
     } finally {
       setLoading(false);
     }
   };
 
+  const validateForm = (formData: any, isEdit: boolean = false) => {
+    const errors: Record<string, string> = {};
+
+    // Name validation
+    if (!formData.name.trim()) {
+      errors.name = 'نام الزامی است';
+    } else if (formData.name.length > 100) {
+      errors.name = 'نام نباید از 100 کاراکتر بیشتر باشد';
+    }
+
+    // Slug validation
+    if (!formData.slug.trim()) {
+      errors.slug = 'Slug الزامی است';
+    } else if (!/^[a-z0-9\u0600-\u06FF-]+$/.test(formData.slug)) {
+      errors.slug = 'Slug باید فقط شامل حروف کوچک، اعداد و خط فاصله باشد';
+    }
+
+    // Description validation
+    if (formData.description.length > 500) {
+      errors.description = 'توضیحات نمی‌تواند بیش از 500 کاراکتر باشد';
+    }
+
+    // Color validation
+    if (formData.color && !/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/.test(formData.color)) {
+      errors.color = 'فرمت رنگ نامعتبر است';
+    }
+
+    // Order validation
+    if (formData.order < 0) {
+      errors.order = 'ترتیب باید عدد مثبت باشد';
+    }
+
+    // SEO validation
+    if (formData.seo?.metaTitle && formData.seo.metaTitle.length > 70) {
+      errors.metaTitle = 'عنوان متا نمی‌تواند بیش از 70 کاراکتر باشد';
+    }
+
+    if (formData.seo?.metaDescription && formData.seo.metaDescription.length > 160) {
+      errors.metaDescription = 'توضیحات متا نمی‌تواند بیش از 160 کاراکتر باشد';
+    }
+
+    return errors;
+  };
+
   const handleAddCategory = async () => {
+    const errors = validateForm(newCategory);
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      return;
+    }
+    setFormErrors({});
+
     try {
-      // In a real implementation, you would call your POST API here
-      const mockNewCategory: Category = {
-        seo: { metaKeywords: [] },
-        _id: Date.now().toString(),
-        id: Date.now().toString(),
+      setActionLoading(true);
+      
+      // Prepare data for backend
+      const categoryData: any = {
         name: newCategory.name,
         slug: newCategory.slug,
         description: newCategory.description,
-        images: '/images/categories/default.jpg',
         color: newCategory.color,
-        parent: null,
         order: newCategory.order,
         isActive: newCategory.isActive,
         showOnHomepage: newCategory.showOnHomepage,
-        productsCount: 0,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        images: newCategory.images // Send the default image path
       };
-
-      setCategories([...categories, mockNewCategory]);
-      setShowAddCategory(false);
-      setNewCategory({
-        name: '',
-        slug: '',
-        description: '',
-        color: '#8B4513',
-        order: 0,
-        isActive: true,
-        showOnHomepage: false
+      
+      // Add parent if selected
+      if (newCategory.parent) {
+        categoryData.parent = newCategory.parent;
+      }
+      
+      // Add SEO data if provided
+      if (newCategory.seo.metaTitle || newCategory.seo.metaDescription || newCategory.seo.metaKeywords.length > 0) {
+        categoryData.seo = {
+          metaTitle: newCategory.seo.metaTitle || '',
+          metaDescription: newCategory.seo.metaDescription || '',
+          metaKeywords: newCategory.seo.metaKeywords || []
+        };
+      }
+      
+      console.log('Sending category data:', categoryData);
+      
+      const response = await fetch('https://coffee-shop-backend-k3un.onrender.com/api/v1/category', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(categoryData),
       });
-      alert('دسته‌بندی با موفقیت اضافه شد');
+      
+      const data = await response.json();
+      
+      console.log('Create response:', data);
+      
+      if (data.success) {
+        alert('دسته‌بندی با موفقیت اضافه شد');
+        setShowAddCategory(false);
+        resetNewCategoryForm();
+        fetchCategories();
+      } else {
+        throw new Error(data.error?.message || `خطای ${response.status} در ایجاد دسته‌بندی`);
+      }
     } catch (err) {
-      alert('خطا در اضافه کردن دسته‌بندی');
+      console.error('Create error:', err);
+      alert(err instanceof Error ? err.message : 'خطا در اضافه کردن دسته‌بندی');
+    } finally {
+      setActionLoading(false);
     }
   };
 
   const handleEditCategory = async () => {
     if (!editingCategory) return;
+    
+    const errors = validateForm(editingCategory, true);
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      return;
+    }
+    setFormErrors({});
 
     try {
-      // In a real implementation, you would call your PUT API here
-      setCategories(categories.map(cat => 
-        cat._id === editingCategory._id ? editingCategory : cat
-      ));
-      setEditingCategory(null);
-      alert('دسته‌بندی با موفقیت به‌روزرسانی شد');
+      setActionLoading(true);
+      
+      // Prepare data for backend - include only changed fields
+      const categoryData: any = {
+        name: editingCategory.name,
+        slug: editingCategory.slug,
+        description: editingCategory.description,
+        color: editingCategory.color,
+        order: editingCategory.order,
+        isActive: editingCategory.isActive,
+        showOnHomepage: editingCategory.showOnHomepage,
+      };
+      
+      // Always send parent (can be null)
+      categoryData.parent = editingCategory.parent || null;
+      
+      // Always send images (use existing or default)
+      categoryData.images = editingCategory.images || '/images/categories/default.jpg';
+      
+      // Add SEO data if it exists
+      if (editingCategory.seo) {
+        categoryData.seo = {
+          metaTitle: editingCategory.seo.metaTitle || '',
+          metaDescription: editingCategory.seo.metaDescription || '',
+          metaKeywords: editingCategory.seo.metaKeywords || []
+        };
+      }
+      
+      console.log('Updating category:', {
+        id: editingCategory._id,
+        data: categoryData
+      });
+      
+      const response = await fetch(`https://coffee-shop-backend-k3un.onrender.com/api/v1/category/${editingCategory._id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(categoryData),
+      });
+      
+      const data = await response.json();
+      
+      console.log('Update response:', data);
+      
+      if (data.success) {
+        alert('دسته‌بندی با موفقیت به‌روزرسانی شد');
+        setEditingCategory(null);
+        fetchCategories();
+      } else {
+        const errorMsg = data.error?.message || `خطای ${response.status}`;
+        throw new Error(errorMsg);
+      }
     } catch (err) {
-      alert('خطا در به‌روزرسانی دسته‌بندی');
+      console.error('Edit error:', err);
+      alert(err instanceof Error ? err.message : 'خطا در به‌روزرسانی دسته‌بندی');
+    } finally {
+      setActionLoading(false);
     }
   };
 
   const handleDeleteCategory = async (id: string) => {
-    if (!confirm('آیا از حذف این دسته‌بندی اطمینان دارید؟')) {
+    if (!confirm('آیا از حذف این دسته‌بندی اطمینان دارید؟\nتوجه: دسته‌بندی‌هایی که زیرمجموعه دارند قابل حذف نیستند.')) {
       return;
     }
 
     try {
-      // In a real implementation, you would call your DELETE API here
-      setCategories(categories.filter(cat => cat._id !== id));
-      alert('دسته‌بندی با موفقیت حذف شد');
+      setActionLoading(true);
+      const response = await fetch(`https://coffee-shop-backend-k3un.onrender.com/api/v1/category/${id}`, {
+        method: 'DELETE',
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        alert('دسته‌بندی با موفقیت حذف شد');
+        fetchCategories();
+      } else {
+        throw new Error(data.error?.message || 'خطا در حذف دسته‌بندی');
+      }
     } catch (err) {
-      alert('خطا در حذف دسته‌بندی');
+      alert(err instanceof Error ? err.message : 'خطا در حذف دسته‌بندی');
+    } finally {
+      setActionLoading(false);
     }
   };
 
+  const resetNewCategoryForm = () => {
+    setNewCategory({
+      name: '',
+      slug: '',
+      description: '',
+      color: '#8B4513',
+      parent: '',
+      order: 0,
+      isActive: true,
+      showOnHomepage: false,
+      seo: {
+        metaTitle: '',
+        metaDescription: '',
+        metaKeywords: [],
+      },
+      images: '/images/categories/default.jpg'
+    });
+    setFormErrors({});
+  };
+
+  const handleEditCategoryClick = (category: Category) => {
+    setEditingCategory({ ...category });
+    setFormErrors({});
+  };
+
   const handleSiteSettingsUpdate = () => {
-    // In a real implementation, you would save these settings to your backend
     alert('تنظیمات سایت با موفقیت ذخیره شد');
   };
 
@@ -178,6 +368,12 @@ export default function SiteSettingsAdmin() {
       <div className="min-h-screen bg-gray-50 flex justify-center items-center">
         <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-lg max-w-md text-center">
           <strong>خطا: </strong> {error}
+          <button 
+            onClick={fetchCategories}
+            className="mt-3 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors block mx-auto"
+          >
+            تلاش مجدد
+          </button>
         </div>
       </div>
     );
@@ -243,85 +439,277 @@ export default function SiteSettingsAdmin() {
                 <div className="bg-gray-50 rounded-lg p-4 sm:p-6 mb-6 border border-gray-200">
                   <h3 className="text-base sm:text-lg font-semibold mb-4">افزودن دسته‌بندی جدید</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-4">
+                    {/* Name */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">نام دسته‌بندی</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        نام دسته‌بندی *
+                      </label>
                       <input
                         type="text"
                         value={newCategory.name}
-                        onChange={(e) => setNewCategory({ ...newCategory, name: e.target.value })}
-                        className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        onChange={(e) => {
+                          setNewCategory({ ...newCategory, name: e.target.value });
+                          if (formErrors.name) setFormErrors({...formErrors, name: ''});
+                        }}
+                        className={`w-full px-3 py-2 text-sm sm:text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                          formErrors.name ? 'border-red-500' : 'border-gray-300'
+                        }`}
                         placeholder="نام دسته‌بندی"
                       />
+                      {formErrors.name && (
+                        <p className="text-red-500 text-xs mt-1">{formErrors.name}</p>
+                      )}
                     </div>
+
+                    {/* Slug */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Slug</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Slug *
+                      </label>
                       <input
                         type="text"
                         value={newCategory.slug}
-                        onChange={(e) => setNewCategory({ ...newCategory, slug: e.target.value })}
+                        onChange={(e) => {
+                          setNewCategory({ ...newCategory, slug: e.target.value.toLowerCase() });
+                          if (formErrors.slug) setFormErrors({...formErrors, slug: ''});
+                        }}
+                        className={`w-full px-3 py-2 text-sm sm:text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                          formErrors.slug ? 'border-red-500' : 'border-gray-300'
+                        }`}
+                        placeholder="slug-unique"
+                      />
+                      {formErrors.slug && (
+                        <p className="text-red-500 text-xs mt-1">{formErrors.slug}</p>
+                      )}
+                    </div>
+
+                    {/* Parent Category */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        دسته‌بندی والد
+                      </label>
+                      <select
+                        value={newCategory.parent}
+                        onChange={(e) => setNewCategory({ ...newCategory, parent: e.target.value })}
                         className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="slug"
-                      />
+                      >
+                        <option value="">بدون والد (دسته اصلی)</option>
+                        {categories
+                          .filter(cat => !cat.parent)
+                          .map(cat => (
+                            <option key={cat._id} value={cat._id}>
+                              {cat.name}
+                            </option>
+                          ))}
+                      </select>
                     </div>
+
+                    {/* Color */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">رنگ</label>
-                      <input
-                        type="color"
-                        value={newCategory.color}
-                        onChange={(e) => setNewCategory({ ...newCategory, color: e.target.value })}
-                        className="w-full h-10 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        رنگ
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          type="color"
+                          value={newCategory.color}
+                          onChange={(e) => {
+                            setNewCategory({ ...newCategory, color: e.target.value });
+                            if (formErrors.color) setFormErrors({...formErrors, color: ''});
+                          }}
+                          className="w-12 h-10 border border-gray-300 rounded-lg"
+                        />
+                        <input
+                          type="text"
+                          value={newCategory.color}
+                          onChange={(e) => {
+                            setNewCategory({ ...newCategory, color: e.target.value });
+                            if (formErrors.color) setFormErrors({...formErrors, color: ''});
+                          }}
+                          className={`flex-1 px-3 py-2 text-sm sm:text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                            formErrors.color ? 'border-red-500' : 'border-gray-300'
+                          }`}
+                          placeholder="#8B4513"
+                        />
+                      </div>
+                      {formErrors.color && (
+                        <p className="text-red-500 text-xs mt-1">{formErrors.color}</p>
+                      )}
                     </div>
+
+                    {/* Order */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">ترتیب نمایش</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        ترتیب نمایش
+                      </label>
                       <input
                         type="number"
+                        min="0"
                         value={newCategory.order}
-                        onChange={(e) => setNewCategory({ ...newCategory, order: Number(e.target.value) })}
-                        className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        onChange={(e) => {
+                          const value = parseInt(e.target.value) || 0;
+                          setNewCategory({ ...newCategory, order: value });
+                          if (formErrors.order) setFormErrors({...formErrors, order: ''});
+                        }}
+                        className={`w-full px-3 py-2 text-sm sm:text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                          formErrors.order ? 'border-red-500' : 'border-gray-300'
+                        }`}
                       />
+                      {formErrors.order && (
+                        <p className="text-red-500 text-xs mt-1">{formErrors.order}</p>
+                      )}
                     </div>
+
+                    {/* Image URL (Read-only for now) */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        تصویر دسته‌بندی
+                      </label>
+                      <div className="border border-gray-300 rounded-lg p-3 bg-gray-50">
+                        <p className="text-sm text-gray-600">
+                          تصویر پیش‌فرض: <span className="text-gray-900">{newCategory.images}</span>
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          (بارگذاری تصویر در نسخه‌های بعدی اضافه خواهد شد)
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Description */}
                     <div className="sm:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">توضیحات</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        توضیحات
+                      </label>
                       <textarea
                         value={newCategory.description}
-                        onChange={(e) => setNewCategory({ ...newCategory, description: e.target.value })}
+                        onChange={(e) => {
+                          setNewCategory({ ...newCategory, description: e.target.value });
+                          if (formErrors.description) setFormErrors({...formErrors, description: ''});
+                        }}
                         rows={3}
-                        className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className={`w-full px-3 py-2 text-sm sm:text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                          formErrors.description ? 'border-red-500' : 'border-gray-300'
+                        }`}
                         placeholder="توضیحات دسته‌بندی"
                       />
+                      <div className="flex justify-between text-xs text-gray-500 mt-1">
+                        <span>اختیاری</span>
+                        <span>{newCategory.description.length}/500</span>
+                      </div>
+                      {formErrors.description && (
+                        <p className="text-red-500 text-xs mt-1">{formErrors.description}</p>
+                      )}
                     </div>
-                    <div className="sm:col-span-2 flex flex-col sm:flex-row gap-3 sm:gap-4">
-                      <label className="flex items-center">
+
+                    {/* SEO Fields */}
+                    <div className="sm:col-span-2 border-t pt-4 mt-2">
+                      <h4 className="text-sm font-semibold text-gray-700 mb-3">تنظیمات SEO</h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">
+                            عنوان متا
+                          </label>
+                          <input
+                            type="text"
+                            value={newCategory.seo.metaTitle}
+                            onChange={(e) => {
+                              setNewCategory({
+                                ...newCategory,
+                                seo: { ...newCategory.seo, metaTitle: e.target.value }
+                              });
+                              if (formErrors.metaTitle) setFormErrors({...formErrors, metaTitle: ''});
+                            }}
+                            className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                              formErrors.metaTitle ? 'border-red-500' : 'border-gray-300'
+                            }`}
+                            placeholder="عنوان برای موتورهای جستجو"
+                          />
+                          <div className="flex justify-between text-xs text-gray-500 mt-1">
+                            <span>اختیاری</span>
+                            <span>{newCategory.seo.metaTitle.length}/70</span>
+                          </div>
+                          {formErrors.metaTitle && (
+                            <p className="text-red-500 text-xs mt-1">{formErrors.metaTitle}</p>
+                          )}
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">
+                            توضیحات متا
+                          </label>
+                          <textarea
+                            value={newCategory.seo.metaDescription}
+                            onChange={(e) => {
+                              setNewCategory({
+                                ...newCategory,
+                                seo: { ...newCategory.seo, metaDescription: e.target.value }
+                              });
+                              if (formErrors.metaDescription) setFormErrors({...formErrors, metaDescription: ''});
+                            }}
+                            rows={2}
+                            className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                              formErrors.metaDescription ? 'border-red-500' : 'border-gray-300'
+                            }`}
+                            placeholder="توضیحات برای موتورهای جستجو"
+                          />
+                          <div className="flex justify-between text-xs text-gray-500 mt-1">
+                            <span>اختیاری</span>
+                            <span>{newCategory.seo.metaDescription.length}/160</span>
+                          </div>
+                          {formErrors.metaDescription && (
+                            <p className="text-red-500 text-xs mt-1">{formErrors.metaDescription}</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Checkboxes */}
+                    <div className="sm:col-span-2 flex flex-col sm:flex-row gap-3 sm:gap-6 pt-2">
+                      <label className="flex items-center gap-2">
                         <input
                           type="checkbox"
                           checked={newCategory.isActive}
                           onChange={(e) => setNewCategory({ ...newCategory, isActive: e.target.checked })}
-                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded ml-2"
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                         />
                         <span className="text-sm text-gray-700">فعال</span>
                       </label>
-                      <label className="flex items-center">
+                      <label className="flex items-center gap-2">
                         <input
                           type="checkbox"
                           checked={newCategory.showOnHomepage}
                           onChange={(e) => setNewCategory({ ...newCategory, showOnHomepage: e.target.checked })}
-                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded ml-2"
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                         />
                         <span className="text-sm text-gray-700">نمایش در صفحه اصلی</span>
                       </label>
                     </div>
                   </div>
+
+                  {/* Action Buttons */}
                   <div className="flex flex-col sm:flex-row gap-3">
                     <button
                       onClick={handleAddCategory}
-                      className="bg-green-600 hover:bg-green-700 text-white px-4 sm:px-6 py-2 rounded-lg font-semibold transition-colors text-sm sm:text-base flex-1"
+                      disabled={actionLoading}
+                      className={`flex-1 py-2.5 rounded-lg font-semibold text-sm sm:text-base flex items-center justify-center gap-2 ${
+                        actionLoading 
+                          ? 'bg-blue-400 cursor-not-allowed' 
+                          : 'bg-green-600 hover:bg-green-700'
+                      } text-white`}
                     >
-                      ذخیره دسته‌بندی
+                      {actionLoading ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                          در حال ذخیره...
+                        </>
+                      ) : 'ذخیره دسته‌بندی'}
                     </button>
                     <button
-                      onClick={() => setShowAddCategory(false)}
-                      className="bg-gray-500 hover:bg-gray-600 text-white px-4 sm:px-6 py-2 rounded-lg font-semibold transition-colors text-sm sm:text-base flex-1"
+                      onClick={() => {
+                        setShowAddCategory(false);
+                        resetNewCategoryForm();
+                      }}
+                      disabled={actionLoading}
+                      className="flex-1 bg-gray-500 hover:bg-gray-600 text-white px-4 sm:px-6 py-2.5 rounded-lg font-semibold transition-colors text-sm sm:text-base"
                     >
                       انصراف
                     </button>
@@ -334,82 +722,282 @@ export default function SiteSettingsAdmin() {
                 <div className="bg-gray-50 rounded-lg p-4 sm:p-6 mb-6 border border-gray-200">
                   <h3 className="text-base sm:text-lg font-semibold mb-4">ویرایش دسته‌بندی</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-4">
+                    {/* Name */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">نام دسته‌بندی</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        نام دسته‌بندی *
+                      </label>
                       <input
                         type="text"
                         value={editingCategory.name}
-                        onChange={(e) => setEditingCategory({ ...editingCategory, name: e.target.value })}
-                        className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        onChange={(e) => {
+                          setEditingCategory({ ...editingCategory, name: e.target.value });
+                          if (formErrors.name) setFormErrors({...formErrors, name: ''});
+                        }}
+                        className={`w-full px-3 py-2 text-sm sm:text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                          formErrors.name ? 'border-red-500' : 'border-gray-300'
+                        }`}
                       />
+                      {formErrors.name && (
+                        <p className="text-red-500 text-xs mt-1">{formErrors.name}</p>
+                      )}
                     </div>
+
+                    {/* Slug */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Slug</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Slug *
+                      </label>
                       <input
                         type="text"
                         value={editingCategory.slug}
-                        onChange={(e) => setEditingCategory({ ...editingCategory, slug: e.target.value })}
+                        onChange={(e) => {
+                          setEditingCategory({ ...editingCategory, slug: e.target.value.toLowerCase() });
+                          if (formErrors.slug) setFormErrors({...formErrors, slug: ''});
+                        }}
+                        className={`w-full px-3 py-2 text-sm sm:text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                          formErrors.slug ? 'border-red-500' : 'border-gray-300'
+                        }`}
+                      />
+                      {formErrors.slug && (
+                        <p className="text-red-500 text-xs mt-1">{formErrors.slug}</p>
+                      )}
+                    </div>
+
+                    {/* Parent Category */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        دسته‌بندی والد
+                      </label>
+                      <select
+                        value={editingCategory.parent || ''}
+                        onChange={(e) => setEditingCategory({ 
+                          ...editingCategory, 
+                          parent: e.target.value || null 
+                        })}
                         className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
+                      >
+                        <option value="">بدون والد (دسته اصلی)</option>
+                        {categories
+                          .filter(cat => cat._id !== editingCategory._id && !cat.parent)
+                          .map(cat => (
+                            <option key={cat._id} value={cat._id}>
+                              {cat.name}
+                            </option>
+                          ))}
+                      </select>
                     </div>
+
+                    {/* Color */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">رنگ</label>
-                      <input
-                        type="color"
-                        value={editingCategory.color}
-                        onChange={(e) => setEditingCategory({ ...editingCategory, color: e.target.value })}
-                        className="w-full h-10 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        رنگ
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          type="color"
+                          value={editingCategory.color}
+                          onChange={(e) => {
+                            setEditingCategory({ ...editingCategory, color: e.target.value });
+                            if (formErrors.color) setFormErrors({...formErrors, color: ''});
+                          }}
+                          className="w-12 h-10 border border-gray-300 rounded-lg"
+                        />
+                        <input
+                          type="text"
+                          value={editingCategory.color}
+                          onChange={(e) => {
+                            setEditingCategory({ ...editingCategory, color: e.target.value });
+                            if (formErrors.color) setFormErrors({...formErrors, color: ''});
+                          }}
+                          className={`flex-1 px-3 py-2 text-sm sm:text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                            formErrors.color ? 'border-red-500' : 'border-gray-300'
+                          }`}
+                        />
+                      </div>
+                      {formErrors.color && (
+                        <p className="text-red-500 text-xs mt-1">{formErrors.color}</p>
+                      )}
                     </div>
+
+                    {/* Order */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">ترتیب نمایش</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        ترتیب نمایش
+                      </label>
                       <input
                         type="number"
+                        min="0"
                         value={editingCategory.order}
-                        onChange={(e) => setEditingCategory({ ...editingCategory, order: Number(e.target.value) })}
-                        className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        onChange={(e) => {
+                          const value = parseInt(e.target.value) || 0;
+                          setEditingCategory({ ...editingCategory, order: value });
+                          if (formErrors.order) setFormErrors({...formErrors, order: ''});
+                        }}
+                        className={`w-full px-3 py-2 text-sm sm:text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                          formErrors.order ? 'border-red-500' : 'border-gray-300'
+                        }`}
                       />
+                      {formErrors.order && (
+                        <p className="text-red-500 text-xs mt-1">{formErrors.order}</p>
+                      )}
                     </div>
+
+                    {/* Image URL */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        مسیر تصویر
+                      </label>
+                      <input
+                        type="text"
+                        value={editingCategory.images}
+                        onChange={(e) => setEditingCategory({ ...editingCategory, images: e.target.value })}
+                        className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="/images/categories/default.jpg"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        مسیر تصویر ذخیره شده در پایگاه داده
+                      </p>
+                    </div>
+
+                    {/* Description */}
                     <div className="sm:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">توضیحات</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        توضیحات
+                      </label>
                       <textarea
                         value={editingCategory.description}
-                        onChange={(e) => setEditingCategory({ ...editingCategory, description: e.target.value })}
+                        onChange={(e) => {
+                          setEditingCategory({ ...editingCategory, description: e.target.value });
+                          if (formErrors.description) setFormErrors({...formErrors, description: ''});
+                        }}
                         rows={3}
-                        className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className={`w-full px-3 py-2 text-sm sm:text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                          formErrors.description ? 'border-red-500' : 'border-gray-300'
+                        }`}
                       />
+                      <div className="flex justify-between text-xs text-gray-500 mt-1">
+                        <span>اختیاری</span>
+                        <span>{editingCategory.description.length}/500</span>
+                      </div>
+                      {formErrors.description && (
+                        <p className="text-red-500 text-xs mt-1">{formErrors.description}</p>
+                      )}
                     </div>
-                    <div className="sm:col-span-2 flex flex-col sm:flex-row gap-3 sm:gap-4">
-                      <label className="flex items-center">
+
+                    {/* SEO Fields */}
+                    <div className="sm:col-span-2 border-t pt-4 mt-2">
+                      <h4 className="text-sm font-semibold text-gray-700 mb-3">تنظیمات SEO</h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">
+                            عنوان متا
+                          </label>
+                          <input
+                            type="text"
+                            value={editingCategory.seo?.metaTitle || ''}
+                            onChange={(e) => {
+                              setEditingCategory({
+                                ...editingCategory,
+                                seo: { 
+                                  ...editingCategory.seo, 
+                                  metaTitle: e.target.value 
+                                }
+                              });
+                              if (formErrors.metaTitle) setFormErrors({...formErrors, metaTitle: ''});
+                            }}
+                            className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                              formErrors.metaTitle ? 'border-red-500' : 'border-gray-300'
+                            }`}
+                          />
+                          <div className="flex justify-between text-xs text-gray-500 mt-1">
+                            <span>اختیاری</span>
+                            <span>{(editingCategory.seo?.metaTitle || '').length}/70</span>
+                          </div>
+                          {formErrors.metaTitle && (
+                            <p className="text-red-500 text-xs mt-1">{formErrors.metaTitle}</p>
+                          )}
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">
+                            توضیحات متا
+                          </label>
+                          <textarea
+                            value={editingCategory.seo?.metaDescription || ''}
+                            onChange={(e) => {
+                              setEditingCategory({
+                                ...editingCategory,
+                                seo: { 
+                                  ...editingCategory.seo, 
+                                  metaDescription: e.target.value 
+                                }
+                              });
+                              if (formErrors.metaDescription) setFormErrors({...formErrors, metaDescription: ''});
+                            }}
+                            rows={2}
+                            className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                              formErrors.metaDescription ? 'border-red-500' : 'border-gray-300'
+                            }`}
+                          />
+                          <div className="flex justify-between text-xs text-gray-500 mt-1">
+                            <span>اختیاری</span>
+                            <span>{(editingCategory.seo?.metaDescription || '').length}/160</span>
+                          </div>
+                          {formErrors.metaDescription && (
+                            <p className="text-red-500 text-xs mt-1">{formErrors.metaDescription}</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Checkboxes */}
+                    <div className="sm:col-span-2 flex flex-col sm:flex-row gap-3 sm:gap-6 pt-2">
+                      <label className="flex items-center gap-2">
                         <input
                           type="checkbox"
                           checked={editingCategory.isActive}
                           onChange={(e) => setEditingCategory({ ...editingCategory, isActive: e.target.checked })}
-                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded ml-2"
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                         />
                         <span className="text-sm text-gray-700">فعال</span>
                       </label>
-                      <label className="flex items-center">
+                      <label className="flex items-center gap-2">
                         <input
                           type="checkbox"
                           checked={editingCategory.showOnHomepage}
                           onChange={(e) => setEditingCategory({ ...editingCategory, showOnHomepage: e.target.checked })}
-                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded ml-2"
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                         />
                         <span className="text-sm text-gray-700">نمایش در صفحه اصلی</span>
                       </label>
                     </div>
                   </div>
+
+                  {/* Action Buttons */}
                   <div className="flex flex-col sm:flex-row gap-3">
                     <button
                       onClick={handleEditCategory}
-                      className="bg-green-600 hover:bg-green-700 text-white px-4 sm:px-6 py-2 rounded-lg font-semibold transition-colors text-sm sm:text-base flex-1"
+                      disabled={actionLoading}
+                      className={`flex-1 py-2.5 rounded-lg font-semibold text-sm sm:text-base flex items-center justify-center gap-2 ${
+                        actionLoading 
+                          ? 'bg-blue-400 cursor-not-allowed' 
+                          : 'bg-green-600 hover:bg-green-700'
+                      } text-white`}
                     >
-                      به‌روزرسانی دسته‌بندی
+                      {actionLoading ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                          در حال به‌روزرسانی...
+                        </>
+                      ) : 'به‌روزرسانی دسته‌بندی'}
                     </button>
                     <button
-                      onClick={() => setEditingCategory(null)}
-                      className="bg-gray-500 hover:bg-gray-600 text-white px-4 sm:px-6 py-2 rounded-lg font-semibold transition-colors text-sm sm:text-base flex-1"
+                      onClick={() => {
+                        setEditingCategory(null);
+                        setFormErrors({});
+                      }}
+                      disabled={actionLoading}
+                      className="flex-1 bg-gray-500 hover:bg-gray-600 text-white px-4 sm:px-6 py-2.5 rounded-lg font-semibold transition-colors text-sm sm:text-base"
                     >
                       انصراف
                     </button>
@@ -417,7 +1005,7 @@ export default function SiteSettingsAdmin() {
                 </div>
               )}
 
-              {/* Categories List - Mobile Cards / Desktop Table */}
+              {/* Categories List */}
               <div className="overflow-hidden">
                 {/* Desktop Table */}
                 <div className="hidden lg:block">
@@ -455,7 +1043,7 @@ export default function SiteSettingsAdmin() {
                               ></div>
                               <div>
                                 <div className="text-sm font-medium text-gray-900">{category.name}</div>
-                                <div className="text-sm text-gray-500">{category.description}</div>
+                                <div className="text-sm text-gray-500 truncate max-w-xs">{category.description}</div>
                               </div>
                             </div>
                           </td>
@@ -492,14 +1080,16 @@ export default function SiteSettingsAdmin() {
                           </td>
                           <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <button
-                              onClick={() => setEditingCategory(category)}
-                              className="text-blue-600 hover:text-blue-900 ml-4"
+                              onClick={() => handleEditCategoryClick(category)}
+                              disabled={actionLoading}
+                              className="text-blue-600 hover:text-blue-900 ml-4 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                               ویرایش
                             </button>
                             <button
                               onClick={() => handleDeleteCategory(category._id)}
-                              className="text-red-600 hover:text-red-900"
+                              disabled={actionLoading}
+                              className="text-red-600 hover:text-red-900 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                               حذف
                             </button>
@@ -524,14 +1114,16 @@ export default function SiteSettingsAdmin() {
                         </div>
                         <div className="flex gap-2">
                           <button
-                            onClick={() => setEditingCategory(category)}
-                            className="text-blue-600 hover:text-blue-800 text-sm"
+                            onClick={() => handleEditCategoryClick(category)}
+                            disabled={actionLoading}
+                            className="text-blue-600 hover:text-blue-800 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             ویرایش
                           </button>
                           <button
                             onClick={() => handleDeleteCategory(category._id)}
-                            className="text-red-600 hover:text-red-800 text-sm"
+                            disabled={actionLoading}
+                            className="text-red-600 hover:text-red-800 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             حذف
                           </button>
@@ -577,7 +1169,7 @@ export default function SiteSettingsAdmin() {
                         {category.description && (
                           <div>
                             <span className="block mb-1">توضیحات:</span>
-                            <p className="text-gray-900 text-xs">{category.description}</p>
+                            <p className="text-gray-900 text-xs line-clamp-2">{category.description}</p>
                           </div>
                         )}
                       </div>
@@ -606,7 +1198,7 @@ export default function SiteSettingsAdmin() {
           </div>
         )}
 
-        {/* General Settings Tab */}
+        {/* Other tabs remain the same */}
         {activeTab === 'general' && (
           <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6">
             <h2 className="text-lg sm:text-xl font-semibold mb-6">تنظیمات عمومی سایت</h2>
@@ -640,7 +1232,6 @@ export default function SiteSettingsAdmin() {
           </div>
         )}
 
-        {/* Contact Settings Tab */}
         {activeTab === 'contact' && (
           <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6">
             <h2 className="text-lg sm:text-xl font-semibold mb-6">اطلاعات تماس</h2>
@@ -691,7 +1282,6 @@ export default function SiteSettingsAdmin() {
           </div>
         )}
 
-        {/* Footer Settings Tab */}
         {activeTab === 'footer' && (
           <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6">
             <h2 className="text-lg sm:text-xl font-semibold mb-6">تنظیمات فوتر</h2>
