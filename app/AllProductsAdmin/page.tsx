@@ -1893,13 +1893,7 @@ export default function ProductManager() {
                         
                         {/* Action Buttons */}
                         <div className="flex gap-3">
-                          <button
-                            onClick={() => handleEdit(product)}
-                            disabled={isSubmitting}
-                            className="bg-blue-100 hover:bg-blue-200 disabled:bg-blue-50 disabled:text-blue-300 text-blue-700 px-4 py-2 rounded-lg font-medium transition-colors text-sm"
-                          >
-                            ویرایش
-                          </button>
+                         
                           <button
                             onClick={() => handleDelete(product._id)}
                             disabled={isSubmitting}
