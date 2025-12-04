@@ -70,7 +70,7 @@ interface Product {
 }
 
 interface OrderItem {
-  product: Product;
+  product: Product | null;
   quantity: number;
   priceAtTimeOfAdding: number;
   _id: string;
@@ -97,7 +97,7 @@ interface OrdersResponse {
       page: number;
       limit: number;
       totalPage: number;
-      totalOrders: number;
+      totalسفارش‌ها: number;
     };
   };
 }
@@ -115,7 +115,6 @@ export default function OrdersAdmin() {
   }, []);
 
   useEffect(() => {
-    // Filter orders based on search term
     if (searchTerm.trim() === '') {
       setFilteredOrders(orders);
     } else {
@@ -124,7 +123,7 @@ export default function OrdersAdmin() {
         order.user.phone.includes(searchTerm) ||
         order.user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
         order.items.some(item => 
-          item.product.name.toLowerCase().includes(searchTerm.toLowerCase())
+          item.product?.name?.toLowerCase().includes(searchTerm.toLowerCase())
         ) ||
         order.status.toLowerCase().includes(searchTerm.toLowerCase()) ||
         order.shippingAddress.address.toLowerCase().includes(searchTerm.toLowerCase())
@@ -154,13 +153,6 @@ export default function OrdersAdmin() {
 
   const handleStatusUpdate = async (orderId: string, newStatus: string) => {
     try {
-      // In a real implementation, you would call your PUT API here
-      // await fetch(`https://coffee-shop-backend-k3un.onrender.com/api/v1/order/${orderId}`, {
-      //   method: 'PUT',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ status: newStatus }),
-      // });
-
       setOrders(orders.map(order => 
         order._id === orderId ? { ...order, status: newStatus } : order
       ));
@@ -224,10 +216,8 @@ export default function OrdersAdmin() {
 
   return (
     <div dir="rtl" className="min-h-screen bg-gray-50 py-8">
-      {/* Main Container */}
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl">
         
-        {/* Header */}
         <div className="bg-white rounded-2xl shadow-sm p-6 mb-8">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
@@ -240,7 +230,6 @@ export default function OrdersAdmin() {
           </div>
         </div>
 
-        {/* Search Section */}
         <div className="bg-white rounded-2xl shadow-sm p-6 mb-8">
           <div className="flex flex-col sm:flex-row gap-4 items-center">
             <div className="flex-1 w-full">
@@ -281,16 +270,13 @@ export default function OrdersAdmin() {
           )}
         </div>
 
-        {/* Orders Table */}
         <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-          {/* Table Header */}
           <div className="border-b border-gray-200 bg-gray-50 px-6 py-4">
             <h2 className="text-lg font-semibold text-gray-900">
               لیست سفارشات ({filteredOrders.length})
             </h2>
           </div>
 
-          {/* Desktop Table */}
           <div className="hidden lg:block overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50">
@@ -332,7 +318,7 @@ export default function OrdersAdmin() {
                       <div className="text-sm text-gray-900">
                         {order.items.map((item, index) => (
                           <div key={item._id} className="mb-1">
-                            <span className="font-medium">{item.product.name}</span>
+                            <span className="font-medium">{item.product?.name || "محصول حذف شده"}</span>
                             <span className="text-gray-500 text-xs mr-2">({item.quantity} عدد)</span>
                           </div>
                         ))}
@@ -380,12 +366,10 @@ export default function OrdersAdmin() {
             </table>
           </div>
 
-          {/* Mobile Cards */}
           <div className="lg:hidden">
             {filteredOrders.map((order) => (
               <div key={order._id} className="border-b border-gray-200 p-6 hover:bg-gray-50 transition-colors">
                 <div className="space-y-4">
-                  {/* Order Header */}
                   <div className="flex justify-between items-start">
                     <div>
                       <h3 className="text-lg font-semibold text-gray-900">{order.authority}</h3>
@@ -403,13 +387,12 @@ export default function OrdersAdmin() {
                     </select>
                   </div>
 
-                  {/* Products */}
                   <div>
                     <h4 className="text-sm font-medium text-gray-700 mb-2">محصولات:</h4>
                     {order.items.map((item) => (
                       <div key={item._id} className="flex justify-between items-center py-1">
                         <span className="text-sm text-gray-900">
-                          {item.product.name}
+                          {item.product?.name || "محصول حذف شده"}
                           <span className="text-gray-500 text-xs mr-2">({item.quantity} عدد)</span>
                         </span>
                         <span className="text-sm text-gray-600">
@@ -419,7 +402,6 @@ export default function OrdersAdmin() {
                     ))}
                   </div>
 
-                  {/* Total and Address */}
                   <div className="flex justify-between items-center pt-2 border-t border-gray-200">
                     <div>
                       <span className="text-sm font-medium text-gray-700">مبلغ کل: </span>
@@ -435,7 +417,6 @@ export default function OrdersAdmin() {
                     <p className="text-xs text-gray-500 mt-1">کد پستی: {order.shippingAddress.postalCode}</p>
                   </div>
 
-                  {/* Actions */}
                   <div className="flex gap-3 pt-2">
                     <button
                       onClick={() => setSelectedOrder(order)}
@@ -453,7 +434,6 @@ export default function OrdersAdmin() {
           </div>
         </div>
 
-        {/* Order Details Modal */}
         {selectedOrder && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -471,7 +451,6 @@ export default function OrdersAdmin() {
                 </div>
 
                 <div className="space-y-6">
-                  {/* Order Info */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <h3 className="text-sm font-medium text-gray-500">کد سفارش</h3>
@@ -485,7 +464,6 @@ export default function OrdersAdmin() {
                     </div>
                   </div>
 
-                  {/* Customer Info */}
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-3">اطلاعات مشتری</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -500,7 +478,6 @@ export default function OrdersAdmin() {
                     </div>
                   </div>
 
-                  {/* Shipping Address */}
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-3">آدرس ارسال</h3>
                     <div className="bg-gray-50 p-4 rounded-lg">
@@ -511,7 +488,6 @@ export default function OrdersAdmin() {
                     </div>
                   </div>
 
-                  {/* Order Items */}
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-3">محصولات سفارش</h3>
                     <div className="space-y-3">
@@ -524,7 +500,7 @@ export default function OrdersAdmin() {
                               </svg>
                             </div>
                             <div>
-                              <h4 className="font-medium text-gray-900">{item.product.name}</h4>
+                              <h4 className="font-medium text-gray-900">{item.product?.name || "محصول حذف شده"}</h4>
                               <p className="text-sm text-gray-500">تعداد: {item.quantity}</p>
                             </div>
                           </div>
@@ -537,7 +513,6 @@ export default function OrdersAdmin() {
                     </div>
                   </div>
 
-                  {/* Order Total */}
                   <div className="border-t pt-4">
                     <div className="flex justify-between items-center text-lg font-bold">
                       <span>مبلغ کل سفارش:</span>
@@ -550,7 +525,6 @@ export default function OrdersAdmin() {
           </div>
         )}
 
-        {/* Empty State */}
         {filteredOrders.length === 0 && !loading && (
           <div className="bg-white rounded-2xl shadow-sm p-12 text-center">
             <svg className="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

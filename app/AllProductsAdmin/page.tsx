@@ -257,9 +257,15 @@ export default function ProductManager() {
       console.log('Products API response:', data);
       
       if (data.data && data.data.products && Array.isArray(data.data.products)) {
-        setProducts(data.data.products);
-        setFilteredProducts(data.data.products);
-        console.log('Products set:', data.data.products.length);
+        // Ensure userReviews is always an array
+        const productsWithSafeReviews = data.data.products.map(product => ({
+          ...product,
+          userReviews: product.userReviews || []
+        }));
+        
+        setProducts(productsWithSafeReviews);
+        setFilteredProducts(productsWithSafeReviews);
+        console.log('Products set:', productsWithSafeReviews.length);
       } else {
         console.error('Unexpected products response structure:', data);
         setProducts([]);
@@ -299,6 +305,8 @@ export default function ProductManager() {
     // Features as JSON string (backend can parse array)
     if (productData.features.length > 0) {
       formData.append('features', JSON.stringify(productData.features));
+    } else {
+      formData.append('features', JSON.stringify([])); // Always send empty array
     }
     
     // Boolean and enum fields
@@ -315,8 +323,8 @@ export default function ProductManager() {
   // Add Product Functionality
   const handleAddProduct = async () => {
     // Form Validation
-    if (!newProduct.name || !newProduct.price || !newProduct.stock || !newProduct.category || !newProduct.brand) {
-      alert('لطفاً فیلدهای ضروری (نام، قیمت، موجودی، دسته‌بندی، برند) را پر کنید');
+    if (!newProduct.name || !newProduct.price || !newProduct.stock || !newProduct.category || !newProduct.brand || !newProduct.positiveFeature || !newProduct.description) {
+      alert('لطفاً فیلدهای ضروری (نام، قیمت، موجودی، دسته‌بندی، برند، ویژگی مثبت، توضیحات) را پر کنید');
       return;
     }
 
@@ -453,7 +461,8 @@ export default function ProductManager() {
       setIsSubmitting(true);
       setServerErrors([]);
 
-      const updateData: Partial<NewProductFormData> = {
+      // Convert product to update format
+      const updateData: Record<string, any> = {
         name: editingProduct.name,
         description: editingProduct.description,
         positiveFeature: editingProduct.positiveFeature,
@@ -461,23 +470,27 @@ export default function ProductManager() {
         brand: editingProduct.brand,
         price: editingProduct.price,
         stock: editingProduct.stock,
-        originalPrice: editingProduct.originalPrice,
-        discount: editingProduct.discount,
-        weight: editingProduct.weight,
-        ingredients: editingProduct.ingredients,
-        benefits: editingProduct.benefits,
-        howToUse: editingProduct.howToUse,
-        badge: editingProduct.badge,
-        warrantyDescription: editingProduct.warrantyDescription,
-        warrantyDuration: editingProduct.warrantyDuration,
+        originalPrice: editingProduct.originalPrice || 0,
+        discount: editingProduct.discount || 0,
+        weight: editingProduct.weight || 0,
+        ingredients: editingProduct.ingredients || '',
+        benefits: editingProduct.benefits || '',
+        howToUse: editingProduct.howToUse || '',
+        badge: editingProduct.badge || '',
+        warrantyDescription: editingProduct.warrantyDescription || '',
+        warrantyDuration: editingProduct.warrantyDuration || 0,
         slug: editingProduct.slug,
-        features: editingProduct.features,
+        // FIX: Send features as JSON string
+        features: JSON.stringify(editingProduct.features || []),
         status: editingProduct.status,
         type: editingProduct.type,
         isPrime: editingProduct.isPrime,
         isPremium: editingProduct.isPremium,
         hasWarranty: editingProduct.hasWarranty,
         recommended: editingProduct.recommended,
+        // FIX: Don't send relatedProducts if empty (to avoid validation error)
+        // Or send empty string to match backend validator expectation
+        relatedProducts: '', // Send empty string instead of JSON array
       };
 
       console.log('=== START: Edit Product Request ===');
@@ -488,18 +501,28 @@ export default function ProductManager() {
 
       const formData = new FormData();
       
-      // Append only changed fields
+      // Append all fields
       Object.entries(updateData).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
-          if (Array.isArray(value)) {
-            formData.append(key, JSON.stringify(value));
-          } else if (typeof value === 'boolean') {
+          // Convert booleans to strings
+          if (typeof value === 'boolean') {
             formData.append(key, value.toString());
-          } else {
+          } 
+          // Handle special fields
+          else if (key === 'features' && Array.isArray(editingProduct.features)) {
+            formData.append(key, JSON.stringify(editingProduct.features));
+          }
+          else {
             formData.append(key, value.toString());
           }
         }
       });
+
+      // Log FormData contents for debugging
+      console.log('FormData contents for edit:');
+      for (const [key, value] of formData.entries()) {
+        console.log(`${key}:`, value);
+      }
 
       const response = await fetch(`${API_BASE_URL}/${editingProduct._id}`, {
         method: 'PATCH',
@@ -543,10 +566,8 @@ export default function ProductManager() {
 
       console.log('=== END: Edit Product Request - SUCCESS ===');
 
-      // Update local state
-      setProducts(products.map(item => 
-        item._id === editingProduct._id ? editingProduct : item
-      ));
+      // Update local state by fetching fresh data
+      await fetchProducts();
       setEditingProduct(null);
       setServerErrors([]);
       alert('محصول با موفقیت به‌روزرسانی شد');
@@ -617,6 +638,39 @@ export default function ProductManager() {
     setNewProduct({
       ...newProduct,
       features: newProduct.features.filter(f => f !== featureToRemove)
+    });
+  };
+
+  // Handle feature input for editing product
+  const [editFeaturesInput, setEditFeaturesInput] = useState('');
+  const [editFeatures, setEditFeatures] = useState<string[]>([]);
+
+  // When editing product changes, update the edit features
+  useEffect(() => {
+    if (editingProduct) {
+      setEditFeatures(editingProduct.features || []);
+      setEditFeaturesInput('');
+    }
+  }, [editingProduct]);
+
+  const addEditFeature = () => {
+    if (editFeaturesInput.trim() && !editFeatures.includes(editFeaturesInput.trim())) {
+      const updatedFeatures = [...editFeatures, editFeaturesInput.trim()];
+      setEditFeatures(updatedFeatures);
+      setEditingProduct({
+        ...editingProduct!,
+        features: updatedFeatures
+      });
+      setEditFeaturesInput('');
+    }
+  };
+
+  const removeEditFeature = (featureToRemove: string) => {
+    const updatedFeatures = editFeatures.filter(f => f !== featureToRemove);
+    setEditFeatures(updatedFeatures);
+    setEditingProduct({
+      ...editingProduct!,
+      features: updatedFeatures
     });
   };
 
@@ -1212,252 +1266,457 @@ export default function ProductManager() {
               </div>
             )}
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-              {/* Name */}
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Name */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">نام محصول *</label>
+                  <input
+                    type="text"
+                    value={editingProduct.name}
+                    onChange={(e) => setEditingProduct({
+                      ...editingProduct,
+                      name: e.target.value
+                    })}
+                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      serverErrors.some(e => e.path === 'name') 
+                        ? 'border-red-500' 
+                        : 'border-gray-300'
+                    }`}
+                    required
+                  />
+                </div>
+
+                {/* Brand */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">برند *</label>
+                  <input
+                    type="text"
+                    value={editingProduct.brand}
+                    onChange={(e) => setEditingProduct({
+                      ...editingProduct,
+                      brand: e.target.value
+                    })}
+                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      serverErrors.some(e => e.path === 'brand') 
+                        ? 'border-red-500' 
+                        : 'border-gray-300'
+                    }`}
+                    required
+                  />
+                </div>
+
+                {/* Category */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">دسته‌بندی *</label>
+                  <select
+                    value={editingProduct.category?._id || ''}
+                    onChange={(e) => setEditingProduct({
+                      ...editingProduct,
+                      category: categories.find(cat => cat._id === e.target.value) || null
+                    })}
+                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      serverErrors.some(e => e.path === 'category') 
+                        ? 'border-red-500' 
+                        : 'border-gray-300'
+                    }`}
+                    required
+                  >
+                    <option value="">انتخاب دسته‌بندی</option>
+                    {categories.length > 0 ? (
+                      categories.map(category => (
+                        <option key={category._id} value={category._id}>
+                          {category.name}
+                        </option>
+                      ))
+                    ) : (
+                      <option value="" disabled>در حال بارگیری دسته‌بندی‌ها...</option>
+                    )}
+                  </select>
+                </div>
+
+                {/* Slug */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">اسلاگ</label>
+                  <input
+                    type="text"
+                    value={editingProduct.slug}
+                    onChange={(e) => setEditingProduct({
+                      ...editingProduct,
+                      slug: e.target.value
+                    })}
+                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      serverErrors.some(e => e.path === 'slug') 
+                        ? 'border-red-500' 
+                        : 'border-gray-300'
+                    }`}
+                  />
+                </div>
+
+                {/* Positive Feature */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">ویژگی مثبت *</label>
+                  <input
+                    type="text"
+                    value={editingProduct.positiveFeature}
+                    onChange={(e) => setEditingProduct({
+                      ...editingProduct,
+                      positiveFeature: e.target.value
+                    })}
+                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      serverErrors.some(e => e.path === 'positiveFeature') 
+                        ? 'border-red-500' 
+                        : 'border-gray-300'
+                    }`}
+                    required
+                  />
+                </div>
+
+                {/* Badge */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">برچسب</label>
+                  <input
+                    type="text"
+                    value={editingProduct.badge}
+                    onChange={(e) => setEditingProduct({
+                      ...editingProduct,
+                      badge: e.target.value
+                    })}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+
+                {/* Price */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">قیمت فروش (تومان) *</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1000"
+                    value={editingProduct.price}
+                    onChange={(e) => setEditingProduct({
+                      ...editingProduct,
+                      price: Number(e.target.value)
+                    })}
+                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      serverErrors.some(e => e.path === 'price') 
+                        ? 'border-red-500' 
+                        : 'border-gray-300'
+                    }`}
+                    required
+                  />
+                </div>
+
+                {/* Original Price */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">قیمت اصلی (تومان)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1000"
+                    value={editingProduct.originalPrice || 0}
+                    onChange={(e) => setEditingProduct({
+                      ...editingProduct,
+                      originalPrice: Number(e.target.value)
+                    })}
+                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      serverErrors.some(e => e.path === 'originalPrice') 
+                        ? 'border-red-500' 
+                        : 'border-gray-300'
+                    }`}
+                  />
+                </div>
+
+                {/* Stock */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">موجودی *</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editingProduct.stock}
+                    onChange={(e) => setEditingProduct({
+                      ...editingProduct,
+                      stock: Number(e.target.value)
+                    })}
+                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      serverErrors.some(e => e.path === 'stock') 
+                        ? 'border-red-500' 
+                        : 'border-gray-300'
+                    }`}
+                    required
+                  />
+                </div>
+
+                {/* Discount */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">تخفیف (%)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={editingProduct.discount || 0}
+                    onChange={(e) => setEditingProduct({
+                      ...editingProduct,
+                      discount: Number(e.target.value)
+                    })}
+                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      serverErrors.some(e => e.path === 'discount') 
+                        ? 'border-red-500' 
+                        : 'border-gray-300'
+                    }`}
+                  />
+                </div>
+
+                {/* Weight */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">وزن (گرم)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editingProduct.weight || 0}
+                    onChange={(e) => setEditingProduct({
+                      ...editingProduct,
+                      weight: Number(e.target.value)
+                    })}
+                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      serverErrors.some(e => e.path === 'weight') 
+                        ? 'border-red-500' 
+                        : 'border-gray-300'
+                    }`}
+                  />
+                </div>
+
+                {/* Status */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">وضعیت *</label>
+                  <select
+                    value={editingProduct.status}
+                    onChange={(e) => setEditingProduct({
+                      ...editingProduct,
+                      status: e.target.value
+                    })}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="inactive">غیرفعال</option>
+                    <option value="active">فعال</option>
+                  </select>
+                </div>
+
+                {/* Type */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">نوع محصول *</label>
+                  <select
+                    value={editingProduct.type}
+                    onChange={(e) => setEditingProduct({
+                      ...editingProduct,
+                      type: e.target.value
+                    })}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="regular">معمولی</option>
+                    <option value="discount">تخفیف‌دار</option>
+                    <option value="premium">پریمیوم</option>
+                  </select>
+                </div>
+
+                {/* Ingredients */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">مواد تشکیل‌دهنده</label>
+                  <input
+                    type="text"
+                    value={editingProduct.ingredients || ''}
+                    onChange={(e) => setEditingProduct({
+                      ...editingProduct,
+                      ingredients: e.target.value
+                    })}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+
+                {/* Benefits */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">فواید</label>
+                  <input
+                    type="text"
+                    value={editingProduct.benefits || ''}
+                    onChange={(e) => setEditingProduct({
+                      ...editingProduct,
+                      benefits: e.target.value
+                    })}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+
+                {/* How to Use */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">نحوه استفاده</label>
+                  <input
+                    type="text"
+                    value={editingProduct.howToUse || ''}
+                    onChange={(e) => setEditingProduct({
+                      ...editingProduct,
+                      howToUse: e.target.value
+                    })}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+
+                {/* Warranty Duration */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">مدت گارانتی (ماه)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editingProduct.warrantyDuration || 0}
+                    onChange={(e) => setEditingProduct({
+                      ...editingProduct,
+                      warrantyDuration: Number(e.target.value)
+                    })}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+
+                {/* Warranty Description */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">توضیحات گارانتی</label>
+                  <input
+                    type="text"
+                    value={editingProduct.warrantyDescription || ''}
+                    onChange={(e) => setEditingProduct({
+                      ...editingProduct,
+                      warrantyDescription: e.target.value
+                    })}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+
+              {/* Description */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">نام محصول</label>
-                <input
-                  type="text"
-                  value={editingProduct.name}
+                <label className="block text-sm font-medium text-gray-700 mb-2">توضیحات محصول *</label>
+                <textarea
+                  value={editingProduct.description}
                   onChange={(e) => setEditingProduct({
                     ...editingProduct,
-                    name: e.target.value
+                    description: e.target.value
                   })}
+                  rows={4}
                   className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                    serverErrors.some(e => e.path === 'name') 
+                    serverErrors.some(e => e.path === 'description') 
                       ? 'border-red-500' 
                       : 'border-gray-300'
                   }`}
+                  required
                 />
               </div>
 
-              {/* Brand */}
+              {/* Features Section */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">برند</label>
-                <input
-                  type="text"
-                  value={editingProduct.brand}
-                  onChange={(e) => setEditingProduct({
-                    ...editingProduct,
-                    brand: e.target.value
-                  })}
-                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                    serverErrors.some(e => e.path === 'brand') 
-                      ? 'border-red-500' 
-                      : 'border-gray-300'
-                  }`}
-                />
+                <label className="block text-sm font-medium text-gray-700 mb-2">ویژگی‌های محصول</label>
+                <div className="flex gap-2 mb-2">
+                  <input
+                    type="text"
+                    value={editFeaturesInput}
+                    onChange={(e) => setEditFeaturesInput(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addEditFeature())}
+                    className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="ویژگی جدید را وارد کنید"
+                  />
+                  <button
+                    type="button"
+                    onClick={addEditFeature}
+                    className="bg-blue-100 text-blue-700 px-4 py-3 rounded-lg font-medium hover:bg-blue-200 transition-colors"
+                  >
+                    افزودن
+                  </button>
+                </div>
+                {editFeatures.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {editFeatures.map((feature, index) => (
+                      <span
+                        key={index}
+                        className="inline-flex items-center bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-sm"
+                      >
+                        {feature}
+                        <button
+                          type="button"
+                          onClick={() => removeEditFeature(feature)}
+                          className="mr-1 text-gray-500 hover:text-red-500"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
 
-              {/* Price */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">قیمت فروش (تومان)</label>
-                <input
-                  type="number"
-                  value={editingProduct.price}
-                  onChange={(e) => setEditingProduct({
-                    ...editingProduct,
-                    price: Number(e.target.value)
-                  })}
-                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                    serverErrors.some(e => e.path === 'price') 
-                      ? 'border-red-500' 
-                      : 'border-gray-300'
-                  }`}
-                />
-              </div>
-
-              {/* Original Price */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">قیمت اصلی (تومان)</label>
-                <input
-                  type="number"
-                  value={editingProduct.originalPrice}
-                  onChange={(e) => setEditingProduct({
-                    ...editingProduct,
-                    originalPrice: Number(e.target.value)
-                  })}
-                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                    serverErrors.some(e => e.path === 'originalPrice') 
-                      ? 'border-red-500' 
-                      : 'border-gray-300'
-                  }`}
-                />
-              </div>
-
-              {/* Stock */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">موجودی</label>
-                <input
-                  type="number"
-                  value={editingProduct.stock}
-                  onChange={(e) => setEditingProduct({
-                    ...editingProduct,
-                    stock: Number(e.target.value)
-                  })}
-                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                    serverErrors.some(e => e.path === 'stock') 
-                      ? 'border-red-500' 
-                      : 'border-gray-300'
-                  }`}
-                />
-              </div>
-
-              {/* Discount */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">تخفیف (%)</label>
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={editingProduct.discount || 0}
-                  onChange={(e) => setEditingProduct({
-                    ...editingProduct,
-                    discount: Number(e.target.value)
-                  })}
-                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                    serverErrors.some(e => e.path === 'discount') 
-                      ? 'border-red-500' 
-                      : 'border-gray-300'
-                  }`}
-                />
-              </div>
-
-              {/* Category */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">دسته‌بندی</label>
-                <select
-                  value={editingProduct.category?._id || ''}
-                  onChange={(e) => setEditingProduct({
-                    ...editingProduct,
-                    category: categories.find(cat => cat._id === e.target.value) || null
-                  })}
-                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                    serverErrors.some(e => e.path === 'category') 
-                      ? 'border-red-500' 
-                      : 'border-gray-300'
-                  }`}
-                >
-                  <option value="">انتخاب دسته‌بندی</option>
-                  {categories.length > 0 ? (
-                    categories.map(category => (
-                      <option key={category._id} value={category._id}>
-                        {category.name}
-                      </option>
-                    ))
-                  ) : (
-                    <option value="" disabled>در حال بارگیری دسته‌بندی‌ها...</option>
-                  )}
-                </select>
-              </div>
-
-              {/* Positive Feature */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">ویژگی مثبت</label>
-                <input
-                  type="text"
-                  value={editingProduct.positiveFeature}
-                  onChange={(e) => setEditingProduct({
-                    ...editingProduct,
-                    positiveFeature: e.target.value
-                  })}
-                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                    serverErrors.some(e => e.path === 'positiveFeature') 
-                      ? 'border-red-500' 
-                      : 'border-gray-300'
-                  }`}
-                />
-              </div>
-
-              {/* Slug */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">اسلاگ</label>
-                <input
-                  type="text"
-                  value={editingProduct.slug}
-                  onChange={(e) => setEditingProduct({
-                    ...editingProduct,
-                    slug: e.target.value
-                  })}
-                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                    serverErrors.some(e => e.path === 'slug') 
-                      ? 'border-red-500' 
-                      : 'border-gray-300'
-                  }`}
-                />
-              </div>
-
-              {/* Weight */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">وزن (گرم)</label>
-                <input
-                  type="number"
-                  value={editingProduct.weight}
-                  onChange={(e) => setEditingProduct({
-                    ...editingProduct,
-                    weight: Number(e.target.value)
-                  })}
-                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                    serverErrors.some(e => e.path === 'weight') 
-                      ? 'border-red-500' 
-                      : 'border-gray-300'
-                  }`}
-                />
-              </div>
-
-              {/* Status */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">وضعیت</label>
-                <select
-                  value={editingProduct.status}
-                  onChange={(e) => setEditingProduct({
-                    ...editingProduct,
-                    status: e.target.value
-                  })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="inactive">غیرفعال</option>
-                  <option value="active">فعال</option>
-                </select>
-              </div>
-
-              {/* Type */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">نوع محصول</label>
-                <select
-                  value={editingProduct.type}
-                  onChange={(e) => setEditingProduct({
-                    ...editingProduct,
-                    type: e.target.value
-                  })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="regular">معمولی</option>
-                  <option value="discount">تخفیف‌دار</option>
-                  <option value="premium">پریمیوم</option>
-                </select>
+              {/* Boolean Fields */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="flex items-center p-3 bg-gray-50 rounded-lg">
+                  <input
+                    type="checkbox"
+                    id="editIsPrime"
+                    checked={editingProduct.isPrime}
+                    onChange={(e) => setEditingProduct({
+                      ...editingProduct,
+                      isPrime: e.target.checked
+                    })}
+                    className="h-4 w-4 text-blue-600 rounded ml-2"
+                  />
+                  <label htmlFor="editIsPrime" className="text-sm text-gray-700">
+                    محصول پرایم
+                  </label>
+                </div>
+                <div className="flex items-center p-3 bg-gray-50 rounded-lg">
+                  <input
+                    type="checkbox"
+                    id="editIsPremium"
+                    checked={editingProduct.isPremium}
+                    onChange={(e) => setEditingProduct({
+                      ...editingProduct,
+                      isPremium: e.target.checked
+                    })}
+                    className="h-4 w-4 text-blue-600 rounded ml-2"
+                  />
+                  <label htmlFor="editIsPremium" className="text-sm text-gray-700">
+                    محصول پریمیوم
+                  </label>
+                </div>
+                <div className="flex items-center p-3 bg-gray-50 rounded-lg">
+                  <input
+                    type="checkbox"
+                    id="editHasWarranty"
+                    checked={editingProduct.hasWarranty}
+                    onChange={(e) => setEditingProduct({
+                      ...editingProduct,
+                      hasWarranty: e.target.checked
+                    })}
+                    className="h-4 w-4 text-blue-600 rounded ml-2"
+                  />
+                  <label htmlFor="editHasWarranty" className="text-sm text-gray-700">
+                    دارای گارانتی
+                  </label>
+                </div>
+                <div className="flex items-center p-3 bg-gray-50 rounded-lg">
+                  <input
+                    type="checkbox"
+                    id="editRecommended"
+                    checked={editingProduct.recommended}
+                    onChange={(e) => setEditingProduct({
+                      ...editingProduct,
+                      recommended: e.target.checked
+                    })}
+                    className="h-4 w-4 text-blue-600 rounded ml-2"
+                  />
+                  <label htmlFor="editRecommended" className="text-sm text-gray-700">
+                    پیشنهاد شده
+                  </label>
+                </div>
               </div>
             </div>
 
-            {/* Description */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">توضیحات</label>
-              <textarea
-                value={editingProduct.description}
-                onChange={(e) => setEditingProduct({
-                  ...editingProduct,
-                  description: e.target.value
-                })}
-                rows={4}
-                className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-6 ${
-                  serverErrors.some(e => e.path === 'description') 
-                    ? 'border-red-500' 
-                    : 'border-gray-300'
-                }`}
-              />
-            </div>
-
-            <div className="flex gap-3 flex-col sm:flex-row">
+            <div className="flex gap-3 flex-col sm:flex-row mt-8">
               <button
                 onClick={handleSaveEdit}
                 disabled={isSubmitting}
@@ -1588,7 +1847,7 @@ export default function ProductManager() {
                             ))}
                           </div>
                           <span className="text-sm text-gray-600">
-                            {product.rating} ({product.userReviews.length} نظر)
+                            {product.rating} ({product.userReviews?.length || 0} نظر)
                           </span>
                         </div>
 
