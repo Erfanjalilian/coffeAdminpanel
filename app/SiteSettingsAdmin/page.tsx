@@ -38,39 +38,14 @@ interface CategoriesResponse {
   };
 }
 
-interface ApiError {
-  status: number;
-  success: boolean;
-  error: {
-    message: string;
-  };
-}
-
 export default function SiteSettingsAdmin() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'categories' | 'general' | 'contact' | 'footer'>('categories');
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
-
-  // Static site settings state
-  const [siteSettings, setSiteSettings] = useState({
-    logo: '',
-    siteName: 'کافی‌شاپ ما',
-    adminEmail: 'admin@coffeeshop.com',
-    supportEmail: 'support@coffeeshop.com',
-    phone: '021-12345678',
-    address: 'تهران، خیابان ولیعصر، پلاک 123',
-    footerText: 'کافی‌شاپ ما - ارائه بهترین قهوه‌های ایتالیایی',
-    socialLinks: {
-      instagram: '',
-      telegram: '',
-      whatsapp: ''
-    }
-  });
 
   // New category form state
   const [newCategory, setNewCategory] = useState({
@@ -351,10 +326,6 @@ export default function SiteSettingsAdmin() {
     setFormErrors({});
   };
 
-  const handleSiteSettingsUpdate = () => {
-    alert('تنظیمات سایت با موفقیت ذخیره شد');
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex justify-center items-center">
@@ -387,962 +358,785 @@ export default function SiteSettingsAdmin() {
         <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6 mb-6 sm:mb-8">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">تنظیمات سایت</h1>
-              <p className="text-gray-600 mt-2 text-xs sm:text-sm lg:text-base">مدیریت دسته‌بندی‌ها و تنظیمات کلی سایت</p>
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">مدیریت دسته‌بندی‌ها</h1>
+              <p className="text-gray-600 mt-2 text-xs sm:text-sm lg:text-base">مدیریت و سازماندهی دسته‌بندی‌های محصولات</p>
             </div>
           </div>
         </div>
 
-        {/* Tabs - Mobile Scrollable */}
-        <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6 mb-6 sm:mb-8">
-          <div className="border-b border-gray-200">
-            <nav className="flex space-x-4 space-x-reverse overflow-x-auto pb-2 -mx-2 px-2">
-              {[
-                { id: 'categories', label: 'دسته‌بندی‌ها' },
-                { id: 'general', label: 'عمومی' },
-                { id: 'contact', label: 'تماس' },
-                { id: 'footer', label: 'فوتر' }
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
-                  className={`py-2 px-3 whitespace-nowrap border-b-2 font-medium text-xs sm:text-sm ${
-                    activeTab === tab.id
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </nav>
+        {/* Main Content */}
+        <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+            <h2 className="text-lg sm:text-xl font-semibold text-gray-900">لیست دسته‌بندی‌ها</h2>
+            <button
+              onClick={() => setShowAddCategory(true)}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-semibold transition-colors text-sm sm:text-base w-full sm:w-auto"
+            >
+              افزودن دسته‌بندی جدید
+            </button>
           </div>
-        </div>
 
-        {/* Categories Tab */}
-        {activeTab === 'categories' && (
-          <div className="space-y-6 sm:space-y-8">
-            {/* Add Category Button */}
-            <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-                <h2 className="text-lg sm:text-xl font-semibold text-gray-900">مدیریت دسته‌بندی‌ها</h2>
-                <button
-                  onClick={() => setShowAddCategory(true)}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-semibold transition-colors text-sm sm:text-base w-full sm:w-auto"
-                >
-                  افزودن دسته‌بندی جدید
-                </button>
+          {/* Add Category Form */}
+          {showAddCategory && (
+            <div className="bg-gray-50 rounded-lg p-4 sm:p-6 mb-6 border border-gray-200">
+              <h3 className="text-base sm:text-lg font-semibold mb-4">افزودن دسته‌بندی جدید</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-4">
+                {/* Name */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    نام دسته‌بندی *
+                  </label>
+                  <input
+                    type="text"
+                    value={newCategory.name}
+                    onChange={(e) => {
+                      setNewCategory({ ...newCategory, name: e.target.value });
+                      if (formErrors.name) setFormErrors({...formErrors, name: ''});
+                    }}
+                    className={`w-full px-3 py-2 text-sm sm:text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      formErrors.name ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                    placeholder="نام دسته‌بندی"
+                  />
+                  {formErrors.name && (
+                    <p className="text-red-500 text-xs mt-1">{formErrors.name}</p>
+                  )}
+                </div>
+
+                {/* Slug */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Slug *
+                  </label>
+                  <input
+                    type="text"
+                    value={newCategory.slug}
+                    onChange={(e) => {
+                      setNewCategory({ ...newCategory, slug: e.target.value.toLowerCase() });
+                      if (formErrors.slug) setFormErrors({...formErrors, slug: ''});
+                    }}
+                    className={`w-full px-3 py-2 text-sm sm:text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      formErrors.slug ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                    placeholder="slug-unique"
+                  />
+                  {formErrors.slug && (
+                    <p className="text-red-500 text-xs mt-1">{formErrors.slug}</p>
+                  )}
+                </div>
+
+                {/* Parent Category */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    دسته‌بندی والد
+                  </label>
+                  <select
+                    value={newCategory.parent}
+                    onChange={(e) => setNewCategory({ ...newCategory, parent: e.target.value })}
+                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">بدون والد (دسته اصلی)</option>
+                    {categories
+                      .filter(cat => !cat.parent)
+                      .map(cat => (
+                        <option key={cat._id} value={cat._id}>
+                          {cat.name}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                {/* Color */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    رنگ
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="color"
+                      value={newCategory.color}
+                      onChange={(e) => {
+                        setNewCategory({ ...newCategory, color: e.target.value });
+                        if (formErrors.color) setFormErrors({...formErrors, color: ''});
+                      }}
+                      className="w-12 h-10 border border-gray-300 rounded-lg"
+                    />
+                    <input
+                      type="text"
+                      value={newCategory.color}
+                      onChange={(e) => {
+                        setNewCategory({ ...newCategory, color: e.target.value });
+                        if (formErrors.color) setFormErrors({...formErrors, color: ''});
+                      }}
+                      className={`flex-1 px-3 py-2 text-sm sm:text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        formErrors.color ? 'border-red-500' : 'border-gray-300'
+                      }`}
+                      placeholder="#8B4513"
+                    />
+                  </div>
+                  {formErrors.color && (
+                    <p className="text-red-500 text-xs mt-1">{formErrors.color}</p>
+                  )}
+                </div>
+
+                {/* Order */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    ترتیب نمایش
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={newCategory.order}
+                    onChange={(e) => {
+                      const value = parseInt(e.target.value) || 0;
+                      setNewCategory({ ...newCategory, order: value });
+                      if (formErrors.order) setFormErrors({...formErrors, order: ''});
+                    }}
+                    className={`w-full px-3 py-2 text-sm sm:text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      formErrors.order ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                  />
+                  {formErrors.order && (
+                    <p className="text-red-500 text-xs mt-1">{formErrors.order}</p>
+                  )}
+                </div>
+
+                {/* Image URL (Read-only for now) */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    تصویر دسته‌بندی
+                  </label>
+                  <div className="border border-gray-300 rounded-lg p-3 bg-gray-50">
+                    <p className="text-sm text-gray-600">
+                      تصویر پیش‌فرض: <span className="text-gray-900">{newCategory.images}</span>
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      (بارگذاری تصویر در نسخه‌های بعدی اضافه خواهد شد)
+                    </p>
+                  </div>
+                </div>
+
+                {/* Description */}
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    توضیحات
+                  </label>
+                  <textarea
+                    value={newCategory.description}
+                    onChange={(e) => {
+                      setNewCategory({ ...newCategory, description: e.target.value });
+                      if (formErrors.description) setFormErrors({...formErrors, description: ''});
+                    }}
+                    rows={3}
+                    className={`w-full px-3 py-2 text-sm sm:text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      formErrors.description ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                    placeholder="توضیحات دسته‌بندی"
+                  />
+                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>اختیاری</span>
+                    <span>{newCategory.description.length}/500</span>
+                  </div>
+                  {formErrors.description && (
+                    <p className="text-red-500 text-xs mt-1">{formErrors.description}</p>
+                  )}
+                </div>
+
+                {/* SEO Fields */}
+                <div className="sm:col-span-2 border-t pt-4 mt-2">
+                  <h4 className="text-sm font-semibold text-gray-700 mb-3">تنظیمات SEO</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                        عنوان متا
+                      </label>
+                      <input
+                        type="text"
+                        value={newCategory.seo.metaTitle}
+                        onChange={(e) => {
+                          setNewCategory({
+                            ...newCategory,
+                            seo: { ...newCategory.seo, metaTitle: e.target.value }
+                          });
+                          if (formErrors.metaTitle) setFormErrors({...formErrors, metaTitle: ''});
+                        }}
+                        className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                          formErrors.metaTitle ? 'border-red-500' : 'border-gray-300'
+                        }`}
+                        placeholder="عنوان برای موتورهای جستجو"
+                      />
+                      <div className="flex justify-between text-xs text-gray-500 mt-1">
+                        <span>اختیاری</span>
+                        <span>{newCategory.seo.metaTitle.length}/70</span>
+                      </div>
+                      {formErrors.metaTitle && (
+                        <p className="text-red-500 text-xs mt-1">{formErrors.metaTitle}</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                        توضیحات متا
+                      </label>
+                      <textarea
+                        value={newCategory.seo.metaDescription}
+                        onChange={(e) => {
+                          setNewCategory({
+                            ...newCategory,
+                            seo: { ...newCategory.seo, metaDescription: e.target.value }
+                          });
+                          if (formErrors.metaDescription) setFormErrors({...formErrors, metaDescription: ''});
+                        }}
+                        rows={2}
+                        className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                          formErrors.metaDescription ? 'border-red-500' : 'border-gray-300'
+                        }`}
+                        placeholder="توضیحات برای موتورهای جستجو"
+                      />
+                      <div className="flex justify-between text-xs text-gray-500 mt-1">
+                        <span>اختیاری</span>
+                        <span>{newCategory.seo.metaDescription.length}/160</span>
+                      </div>
+                      {formErrors.metaDescription && (
+                        <p className="text-red-500 text-xs mt-1">{formErrors.metaDescription}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Checkboxes */}
+                <div className="sm:col-span-2 flex flex-col sm:flex-row gap-3 sm:gap-6 pt-2">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={newCategory.isActive}
+                      onChange={(e) => setNewCategory({ ...newCategory, isActive: e.target.checked })}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <span className="text-sm text-gray-700">فعال</span>
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={newCategory.showOnHomepage}
+                      onChange={(e) => setNewCategory({ ...newCategory, showOnHomepage: e.target.checked })}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <span className="text-sm text-gray-700">نمایش در صفحه اصلی</span>
+                  </label>
+                </div>
               </div>
 
-              {/* Add Category Form */}
-              {showAddCategory && (
-                <div className="bg-gray-50 rounded-lg p-4 sm:p-6 mb-6 border border-gray-200">
-                  <h3 className="text-base sm:text-lg font-semibold mb-4">افزودن دسته‌بندی جدید</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-4">
-                    {/* Name */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        نام دسته‌بندی *
-                      </label>
-                      <input
-                        type="text"
-                        value={newCategory.name}
-                        onChange={(e) => {
-                          setNewCategory({ ...newCategory, name: e.target.value });
-                          if (formErrors.name) setFormErrors({...formErrors, name: ''});
-                        }}
-                        className={`w-full px-3 py-2 text-sm sm:text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                          formErrors.name ? 'border-red-500' : 'border-gray-300'
-                        }`}
-                        placeholder="نام دسته‌بندی"
-                      />
-                      {formErrors.name && (
-                        <p className="text-red-500 text-xs mt-1">{formErrors.name}</p>
-                      )}
-                    </div>
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button
+                  onClick={handleAddCategory}
+                  disabled={actionLoading}
+                  className={`flex-1 py-2.5 rounded-lg font-semibold text-sm sm:text-base flex items-center justify-center gap-2 ${
+                    actionLoading 
+                      ? 'bg-blue-400 cursor-not-allowed' 
+                      : 'bg-green-600 hover:bg-green-700'
+                  } text-white`}
+                >
+                  {actionLoading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      در حال ذخیره...
+                    </>
+                  ) : 'ذخیره دسته‌بندی'}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowAddCategory(false);
+                    resetNewCategoryForm();
+                  }}
+                  disabled={actionLoading}
+                  className="flex-1 bg-gray-500 hover:bg-gray-600 text-white px-4 sm:px-6 py-2.5 rounded-lg font-semibold transition-colors text-sm sm:text-base"
+                >
+                  انصراف
+                </button>
+              </div>
+            </div>
+          )}
 
-                    {/* Slug */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Slug *
-                      </label>
-                      <input
-                        type="text"
-                        value={newCategory.slug}
-                        onChange={(e) => {
-                          setNewCategory({ ...newCategory, slug: e.target.value.toLowerCase() });
-                          if (formErrors.slug) setFormErrors({...formErrors, slug: ''});
-                        }}
-                        className={`w-full px-3 py-2 text-sm sm:text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                          formErrors.slug ? 'border-red-500' : 'border-gray-300'
-                        }`}
-                        placeholder="slug-unique"
-                      />
-                      {formErrors.slug && (
-                        <p className="text-red-500 text-xs mt-1">{formErrors.slug}</p>
-                      )}
-                    </div>
-
-                    {/* Parent Category */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        دسته‌بندی والد
-                      </label>
-                      <select
-                        value={newCategory.parent}
-                        onChange={(e) => setNewCategory({ ...newCategory, parent: e.target.value })}
-                        className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="">بدون والد (دسته اصلی)</option>
-                        {categories
-                          .filter(cat => !cat.parent)
-                          .map(cat => (
-                            <option key={cat._id} value={cat._id}>
-                              {cat.name}
-                            </option>
-                          ))}
-                      </select>
-                    </div>
-
-                    {/* Color */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        رنگ
-                      </label>
-                      <div className="flex gap-2">
-                        <input
-                          type="color"
-                          value={newCategory.color}
-                          onChange={(e) => {
-                            setNewCategory({ ...newCategory, color: e.target.value });
-                            if (formErrors.color) setFormErrors({...formErrors, color: ''});
-                          }}
-                          className="w-12 h-10 border border-gray-300 rounded-lg"
-                        />
-                        <input
-                          type="text"
-                          value={newCategory.color}
-                          onChange={(e) => {
-                            setNewCategory({ ...newCategory, color: e.target.value });
-                            if (formErrors.color) setFormErrors({...formErrors, color: ''});
-                          }}
-                          className={`flex-1 px-3 py-2 text-sm sm:text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                            formErrors.color ? 'border-red-500' : 'border-gray-300'
-                          }`}
-                          placeholder="#8B4513"
-                        />
-                      </div>
-                      {formErrors.color && (
-                        <p className="text-red-500 text-xs mt-1">{formErrors.color}</p>
-                      )}
-                    </div>
-
-                    {/* Order */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        ترتیب نمایش
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={newCategory.order}
-                        onChange={(e) => {
-                          const value = parseInt(e.target.value) || 0;
-                          setNewCategory({ ...newCategory, order: value });
-                          if (formErrors.order) setFormErrors({...formErrors, order: ''});
-                        }}
-                        className={`w-full px-3 py-2 text-sm sm:text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                          formErrors.order ? 'border-red-500' : 'border-gray-300'
-                        }`}
-                      />
-                      {formErrors.order && (
-                        <p className="text-red-500 text-xs mt-1">{formErrors.order}</p>
-                      )}
-                    </div>
-
-                    {/* Image URL (Read-only for now) */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        تصویر دسته‌بندی
-                      </label>
-                      <div className="border border-gray-300 rounded-lg p-3 bg-gray-50">
-                        <p className="text-sm text-gray-600">
-                          تصویر پیش‌فرض: <span className="text-gray-900">{newCategory.images}</span>
-                        </p>
-                        <p className="text-xs text-gray-500 mt-1">
-                          (بارگذاری تصویر در نسخه‌های بعدی اضافه خواهد شد)
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Description */}
-                    <div className="sm:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        توضیحات
-                      </label>
-                      <textarea
-                        value={newCategory.description}
-                        onChange={(e) => {
-                          setNewCategory({ ...newCategory, description: e.target.value });
-                          if (formErrors.description) setFormErrors({...formErrors, description: ''});
-                        }}
-                        rows={3}
-                        className={`w-full px-3 py-2 text-sm sm:text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                          formErrors.description ? 'border-red-500' : 'border-gray-300'
-                        }`}
-                        placeholder="توضیحات دسته‌بندی"
-                      />
-                      <div className="flex justify-between text-xs text-gray-500 mt-1">
-                        <span>اختیاری</span>
-                        <span>{newCategory.description.length}/500</span>
-                      </div>
-                      {formErrors.description && (
-                        <p className="text-red-500 text-xs mt-1">{formErrors.description}</p>
-                      )}
-                    </div>
-
-                    {/* SEO Fields */}
-                    <div className="sm:col-span-2 border-t pt-4 mt-2">
-                      <h4 className="text-sm font-semibold text-gray-700 mb-3">تنظیمات SEO</h4>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">
-                            عنوان متا
-                          </label>
-                          <input
-                            type="text"
-                            value={newCategory.seo.metaTitle}
-                            onChange={(e) => {
-                              setNewCategory({
-                                ...newCategory,
-                                seo: { ...newCategory.seo, metaTitle: e.target.value }
-                              });
-                              if (formErrors.metaTitle) setFormErrors({...formErrors, metaTitle: ''});
-                            }}
-                            className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                              formErrors.metaTitle ? 'border-red-500' : 'border-gray-300'
-                            }`}
-                            placeholder="عنوان برای موتورهای جستجو"
-                          />
-                          <div className="flex justify-between text-xs text-gray-500 mt-1">
-                            <span>اختیاری</span>
-                            <span>{newCategory.seo.metaTitle.length}/70</span>
-                          </div>
-                          {formErrors.metaTitle && (
-                            <p className="text-red-500 text-xs mt-1">{formErrors.metaTitle}</p>
-                          )}
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">
-                            توضیحات متا
-                          </label>
-                          <textarea
-                            value={newCategory.seo.metaDescription}
-                            onChange={(e) => {
-                              setNewCategory({
-                                ...newCategory,
-                                seo: { ...newCategory.seo, metaDescription: e.target.value }
-                              });
-                              if (formErrors.metaDescription) setFormErrors({...formErrors, metaDescription: ''});
-                            }}
-                            rows={2}
-                            className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                              formErrors.metaDescription ? 'border-red-500' : 'border-gray-300'
-                            }`}
-                            placeholder="توضیحات برای موتورهای جستجو"
-                          />
-                          <div className="flex justify-between text-xs text-gray-500 mt-1">
-                            <span>اختیاری</span>
-                            <span>{newCategory.seo.metaDescription.length}/160</span>
-                          </div>
-                          {formErrors.metaDescription && (
-                            <p className="text-red-500 text-xs mt-1">{formErrors.metaDescription}</p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Checkboxes */}
-                    <div className="sm:col-span-2 flex flex-col sm:flex-row gap-3 sm:gap-6 pt-2">
-                      <label className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={newCategory.isActive}
-                          onChange={(e) => setNewCategory({ ...newCategory, isActive: e.target.checked })}
-                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                        />
-                        <span className="text-sm text-gray-700">فعال</span>
-                      </label>
-                      <label className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={newCategory.showOnHomepage}
-                          onChange={(e) => setNewCategory({ ...newCategory, showOnHomepage: e.target.checked })}
-                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                        />
-                        <span className="text-sm text-gray-700">نمایش در صفحه اصلی</span>
-                      </label>
-                    </div>
-                  </div>
-
-                  {/* Action Buttons */}
-                  <div className="flex flex-col sm:flex-row gap-3">
-                    <button
-                      onClick={handleAddCategory}
-                      disabled={actionLoading}
-                      className={`flex-1 py-2.5 rounded-lg font-semibold text-sm sm:text-base flex items-center justify-center gap-2 ${
-                        actionLoading 
-                          ? 'bg-blue-400 cursor-not-allowed' 
-                          : 'bg-green-600 hover:bg-green-700'
-                      } text-white`}
-                    >
-                      {actionLoading ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                          در حال ذخیره...
-                        </>
-                      ) : 'ذخیره دسته‌بندی'}
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowAddCategory(false);
-                        resetNewCategoryForm();
-                      }}
-                      disabled={actionLoading}
-                      className="flex-1 bg-gray-500 hover:bg-gray-600 text-white px-4 sm:px-6 py-2.5 rounded-lg font-semibold transition-colors text-sm sm:text-base"
-                    >
-                      انصراف
-                    </button>
-                  </div>
+          {/* Edit Category Form */}
+          {editingCategory && (
+            <div className="bg-gray-50 rounded-lg p-4 sm:p-6 mb-6 border border-gray-200">
+              <h3 className="text-base sm:text-lg font-semibold mb-4">ویرایش دسته‌بندی</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-4">
+                {/* Name */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    نام دسته‌بندی *
+                  </label>
+                  <input
+                    type="text"
+                    value={editingCategory.name}
+                    onChange={(e) => {
+                      setEditingCategory({ ...editingCategory, name: e.target.value });
+                      if (formErrors.name) setFormErrors({...formErrors, name: ''});
+                    }}
+                    className={`w-full px-3 py-2 text-sm sm:text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      formErrors.name ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                  />
+                  {formErrors.name && (
+                    <p className="text-red-500 text-xs mt-1">{formErrors.name}</p>
+                  )}
                 </div>
-              )}
 
-              {/* Edit Category Form */}
-              {editingCategory && (
-                <div className="bg-gray-50 rounded-lg p-4 sm:p-6 mb-6 border border-gray-200">
-                  <h3 className="text-base sm:text-lg font-semibold mb-4">ویرایش دسته‌بندی</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-4">
-                    {/* Name */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        نام دسته‌بندی *
-                      </label>
-                      <input
-                        type="text"
-                        value={editingCategory.name}
-                        onChange={(e) => {
-                          setEditingCategory({ ...editingCategory, name: e.target.value });
-                          if (formErrors.name) setFormErrors({...formErrors, name: ''});
-                        }}
-                        className={`w-full px-3 py-2 text-sm sm:text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                          formErrors.name ? 'border-red-500' : 'border-gray-300'
-                        }`}
-                      />
-                      {formErrors.name && (
-                        <p className="text-red-500 text-xs mt-1">{formErrors.name}</p>
-                      )}
-                    </div>
-
-                    {/* Slug */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Slug *
-                      </label>
-                      <input
-                        type="text"
-                        value={editingCategory.slug}
-                        onChange={(e) => {
-                          setEditingCategory({ ...editingCategory, slug: e.target.value.toLowerCase() });
-                          if (formErrors.slug) setFormErrors({...formErrors, slug: ''});
-                        }}
-                        className={`w-full px-3 py-2 text-sm sm:text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                          formErrors.slug ? 'border-red-500' : 'border-gray-300'
-                        }`}
-                      />
-                      {formErrors.slug && (
-                        <p className="text-red-500 text-xs mt-1">{formErrors.slug}</p>
-                      )}
-                    </div>
-
-                    {/* Parent Category */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        دسته‌بندی والد
-                      </label>
-                      <select
-                        value={editingCategory.parent || ''}
-                        onChange={(e) => setEditingCategory({ 
-                          ...editingCategory, 
-                          parent: e.target.value || null 
-                        })}
-                        className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="">بدون والد (دسته اصلی)</option>
-                        {categories
-                          .filter(cat => cat._id !== editingCategory._id && !cat.parent)
-                          .map(cat => (
-                            <option key={cat._id} value={cat._id}>
-                              {cat.name}
-                            </option>
-                          ))}
-                      </select>
-                    </div>
-
-                    {/* Color */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        رنگ
-                      </label>
-                      <div className="flex gap-2">
-                        <input
-                          type="color"
-                          value={editingCategory.color}
-                          onChange={(e) => {
-                            setEditingCategory({ ...editingCategory, color: e.target.value });
-                            if (formErrors.color) setFormErrors({...formErrors, color: ''});
-                          }}
-                          className="w-12 h-10 border border-gray-300 rounded-lg"
-                        />
-                        <input
-                          type="text"
-                          value={editingCategory.color}
-                          onChange={(e) => {
-                            setEditingCategory({ ...editingCategory, color: e.target.value });
-                            if (formErrors.color) setFormErrors({...formErrors, color: ''});
-                          }}
-                          className={`flex-1 px-3 py-2 text-sm sm:text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                            formErrors.color ? 'border-red-500' : 'border-gray-300'
-                          }`}
-                        />
-                      </div>
-                      {formErrors.color && (
-                        <p className="text-red-500 text-xs mt-1">{formErrors.color}</p>
-                      )}
-                    </div>
-
-                    {/* Order */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        ترتیب نمایش
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={editingCategory.order}
-                        onChange={(e) => {
-                          const value = parseInt(e.target.value) || 0;
-                          setEditingCategory({ ...editingCategory, order: value });
-                          if (formErrors.order) setFormErrors({...formErrors, order: ''});
-                        }}
-                        className={`w-full px-3 py-2 text-sm sm:text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                          formErrors.order ? 'border-red-500' : 'border-gray-300'
-                        }`}
-                      />
-                      {formErrors.order && (
-                        <p className="text-red-500 text-xs mt-1">{formErrors.order}</p>
-                      )}
-                    </div>
-
-                    {/* Image URL */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        مسیر تصویر
-                      </label>
-                      <input
-                        type="text"
-                        value={editingCategory.images}
-                        onChange={(e) => setEditingCategory({ ...editingCategory, images: e.target.value })}
-                        className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="/images/categories/default.jpg"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">
-                        مسیر تصویر ذخیره شده در پایگاه داده
-                      </p>
-                    </div>
-
-                    {/* Description */}
-                    <div className="sm:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        توضیحات
-                      </label>
-                      <textarea
-                        value={editingCategory.description}
-                        onChange={(e) => {
-                          setEditingCategory({ ...editingCategory, description: e.target.value });
-                          if (formErrors.description) setFormErrors({...formErrors, description: ''});
-                        }}
-                        rows={3}
-                        className={`w-full px-3 py-2 text-sm sm:text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                          formErrors.description ? 'border-red-500' : 'border-gray-300'
-                        }`}
-                      />
-                      <div className="flex justify-between text-xs text-gray-500 mt-1">
-                        <span>اختیاری</span>
-                        <span>{editingCategory.description.length}/500</span>
-                      </div>
-                      {formErrors.description && (
-                        <p className="text-red-500 text-xs mt-1">{formErrors.description}</p>
-                      )}
-                    </div>
-
-                    {/* SEO Fields */}
-                    <div className="sm:col-span-2 border-t pt-4 mt-2">
-                      <h4 className="text-sm font-semibold text-gray-700 mb-3">تنظیمات SEO</h4>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">
-                            عنوان متا
-                          </label>
-                          <input
-                            type="text"
-                            value={editingCategory.seo?.metaTitle || ''}
-                            onChange={(e) => {
-                              setEditingCategory({
-                                ...editingCategory,
-                                seo: { 
-                                  ...editingCategory.seo, 
-                                  metaTitle: e.target.value 
-                                }
-                              });
-                              if (formErrors.metaTitle) setFormErrors({...formErrors, metaTitle: ''});
-                            }}
-                            className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                              formErrors.metaTitle ? 'border-red-500' : 'border-gray-300'
-                            }`}
-                          />
-                          <div className="flex justify-between text-xs text-gray-500 mt-1">
-                            <span>اختیاری</span>
-                            <span>{(editingCategory.seo?.metaTitle || '').length}/70</span>
-                          </div>
-                          {formErrors.metaTitle && (
-                            <p className="text-red-500 text-xs mt-1">{formErrors.metaTitle}</p>
-                          )}
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">
-                            توضیحات متا
-                          </label>
-                          <textarea
-                            value={editingCategory.seo?.metaDescription || ''}
-                            onChange={(e) => {
-                              setEditingCategory({
-                                ...editingCategory,
-                                seo: { 
-                                  ...editingCategory.seo, 
-                                  metaDescription: e.target.value 
-                                }
-                              });
-                              if (formErrors.metaDescription) setFormErrors({...formErrors, metaDescription: ''});
-                            }}
-                            rows={2}
-                            className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                              formErrors.metaDescription ? 'border-red-500' : 'border-gray-300'
-                            }`}
-                          />
-                          <div className="flex justify-between text-xs text-gray-500 mt-1">
-                            <span>اختیاری</span>
-                            <span>{(editingCategory.seo?.metaDescription || '').length}/160</span>
-                          </div>
-                          {formErrors.metaDescription && (
-                            <p className="text-red-500 text-xs mt-1">{formErrors.metaDescription}</p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Checkboxes */}
-                    <div className="sm:col-span-2 flex flex-col sm:flex-row gap-3 sm:gap-6 pt-2">
-                      <label className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={editingCategory.isActive}
-                          onChange={(e) => setEditingCategory({ ...editingCategory, isActive: e.target.checked })}
-                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                        />
-                        <span className="text-sm text-gray-700">فعال</span>
-                      </label>
-                      <label className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={editingCategory.showOnHomepage}
-                          onChange={(e) => setEditingCategory({ ...editingCategory, showOnHomepage: e.target.checked })}
-                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                        />
-                        <span className="text-sm text-gray-700">نمایش در صفحه اصلی</span>
-                      </label>
-                    </div>
-                  </div>
-
-                  {/* Action Buttons */}
-                  <div className="flex flex-col sm:flex-row gap-3">
-                    <button
-                      onClick={handleEditCategory}
-                      disabled={actionLoading}
-                      className={`flex-1 py-2.5 rounded-lg font-semibold text-sm sm:text-base flex items-center justify-center gap-2 ${
-                        actionLoading 
-                          ? 'bg-blue-400 cursor-not-allowed' 
-                          : 'bg-green-600 hover:bg-green-700'
-                      } text-white`}
-                    >
-                      {actionLoading ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                          در حال به‌روزرسانی...
-                        </>
-                      ) : 'به‌روزرسانی دسته‌بندی'}
-                    </button>
-                    <button
-                      onClick={() => {
-                        setEditingCategory(null);
-                        setFormErrors({});
-                      }}
-                      disabled={actionLoading}
-                      className="flex-1 bg-gray-500 hover:bg-gray-600 text-white px-4 sm:px-6 py-2.5 rounded-lg font-semibold transition-colors text-sm sm:text-base"
-                    >
-                      انصراف
-                    </button>
-                  </div>
+                {/* Slug */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Slug *
+                  </label>
+                  <input
+                    type="text"
+                    value={editingCategory.slug}
+                    onChange={(e) => {
+                      setEditingCategory({ ...editingCategory, slug: e.target.value.toLowerCase() });
+                      if (formErrors.slug) setFormErrors({...formErrors, slug: ''});
+                    }}
+                    className={`w-full px-3 py-2 text-sm sm:text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      formErrors.slug ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                  />
+                  {formErrors.slug && (
+                    <p className="text-red-500 text-xs mt-1">{formErrors.slug}</p>
+                  )}
                 </div>
-              )}
 
-              {/* Categories List */}
-              <div className="overflow-hidden">
-                {/* Desktop Table */}
-                <div className="hidden lg:block">
-                  <table className="w-full">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-4 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          نام دسته‌بندی
-                        </th>
-                        <th className="px-4 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Slug
-                        </th>
-                        <th className="px-4 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          رنگ
-                        </th>
-                        <th className="px-4 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          وضعیت
-                        </th>
-                        <th className="px-4 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          تعداد محصولات
-                        </th>
-                        <th className="px-4 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          عملیات
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {categories.map((category) => (
-                        <tr key={category._id} className="hover:bg-gray-50 transition-colors">
-                          <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center">
-                              <div 
-                                className="w-4 h-4 rounded-full ml-3 border border-gray-300"
-                                style={{ backgroundColor: category.color }}
-                              ></div>
-                              <div>
-                                <div className="text-sm font-medium text-gray-900">{category.name}</div>
-                                <div className="text-sm text-gray-500 truncate max-w-xs">{category.description}</div>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {category.slug}
-                          </td>
-                          <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center">
-                              <div 
-                                className="w-6 h-6 rounded border border-gray-300"
-                                style={{ backgroundColor: category.color }}
-                              ></div>
-                              <span className="text-sm text-gray-600 mr-2">{category.color}</span>
-                            </div>
-                          </td>
-                          <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center gap-2">
-                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                category.isActive 
-                                  ? 'bg-green-100 text-green-800' 
-                                  : 'bg-red-100 text-red-800'
-                              }`}>
-                                {category.isActive ? 'فعال' : 'غیرفعال'}
-                              </span>
-                              {category.showOnHomepage && (
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                  صفحه اصلی
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {category.productsCount}
-                          </td>
-                          <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <button
-                              onClick={() => handleEditCategoryClick(category)}
-                              disabled={actionLoading}
-                              className="text-blue-600 hover:text-blue-900 ml-4 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              ویرایش
-                            </button>
-                            <button
-                              onClick={() => handleDeleteCategory(category._id)}
-                              disabled={actionLoading}
-                              className="text-red-600 hover:text-red-900 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              حذف
-                            </button>
-                          </td>
-                        </tr>
+                {/* Parent Category */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    دسته‌بندی والد
+                  </label>
+                  <select
+                    value={editingCategory.parent || ''}
+                    onChange={(e) => setEditingCategory({ 
+                      ...editingCategory, 
+                      parent: e.target.value || null 
+                    })}
+                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">بدون والد (دسته اصلی)</option>
+                    {categories
+                      .filter(cat => cat._id !== editingCategory._id && !cat.parent)
+                      .map(cat => (
+                        <option key={cat._id} value={cat._id}>
+                          {cat.name}
+                        </option>
                       ))}
-                    </tbody>
-                  </table>
+                  </select>
                 </div>
 
-                {/* Mobile Cards */}
-                <div className="lg:hidden space-y-4">
+                {/* Color */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    رنگ
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="color"
+                      value={editingCategory.color}
+                      onChange={(e) => {
+                        setEditingCategory({ ...editingCategory, color: e.target.value });
+                        if (formErrors.color) setFormErrors({...formErrors, color: ''});
+                      }}
+                      className="w-12 h-10 border border-gray-300 rounded-lg"
+                    />
+                    <input
+                      type="text"
+                      value={editingCategory.color}
+                      onChange={(e) => {
+                        setEditingCategory({ ...editingCategory, color: e.target.value });
+                        if (formErrors.color) setFormErrors({...formErrors, color: ''});
+                      }}
+                      className={`flex-1 px-3 py-2 text-sm sm:text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        formErrors.color ? 'border-red-500' : 'border-gray-300'
+                      }`}
+                    />
+                  </div>
+                  {formErrors.color && (
+                    <p className="text-red-500 text-xs mt-1">{formErrors.color}</p>
+                  )}
+                </div>
+
+                {/* Order */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    ترتیب نمایش
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editingCategory.order}
+                    onChange={(e) => {
+                      const value = parseInt(e.target.value) || 0;
+                      setEditingCategory({ ...editingCategory, order: value });
+                      if (formErrors.order) setFormErrors({...formErrors, order: ''});
+                    }}
+                    className={`w-full px-3 py-2 text-sm sm:text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      formErrors.order ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                  />
+                  {formErrors.order && (
+                    <p className="text-red-500 text-xs mt-1">{formErrors.order}</p>
+                  )}
+                </div>
+
+                {/* Image URL */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    مسیر تصویر
+                  </label>
+                  <input
+                    type="text"
+                    value={editingCategory.images}
+                    onChange={(e) => setEditingCategory({ ...editingCategory, images: e.target.value })}
+                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="/images/categories/default.jpg"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    مسیر تصویر ذخیره شده در پایگاه داده
+                  </p>
+                </div>
+
+                {/* Description */}
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    توضیحات
+                  </label>
+                  <textarea
+                    value={editingCategory.description}
+                    onChange={(e) => {
+                      setEditingCategory({ ...editingCategory, description: e.target.value });
+                      if (formErrors.description) setFormErrors({...formErrors, description: ''});
+                    }}
+                    rows={3}
+                    className={`w-full px-3 py-2 text-sm sm:text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      formErrors.description ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                  />
+                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>اختیاری</span>
+                    <span>{editingCategory.description.length}/500</span>
+                  </div>
+                  {formErrors.description && (
+                    <p className="text-red-500 text-xs mt-1">{formErrors.description}</p>
+                  )}
+                </div>
+
+                {/* SEO Fields */}
+                <div className="sm:col-span-2 border-t pt-4 mt-2">
+                  <h4 className="text-sm font-semibold text-gray-700 mb-3">تنظیمات SEO</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                        عنوان متا
+                      </label>
+                      <input
+                        type="text"
+                        value={editingCategory.seo?.metaTitle || ''}
+                        onChange={(e) => {
+                          setEditingCategory({
+                            ...editingCategory,
+                            seo: { 
+                              ...editingCategory.seo, 
+                              metaTitle: e.target.value 
+                            }
+                          });
+                          if (formErrors.metaTitle) setFormErrors({...formErrors, metaTitle: ''});
+                        }}
+                        className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                          formErrors.metaTitle ? 'border-red-500' : 'border-gray-300'
+                        }`}
+                      />
+                      <div className="flex justify-between text-xs text-gray-500 mt-1">
+                        <span>اختیاری</span>
+                        <span>{(editingCategory.seo?.metaTitle || '').length}/70</span>
+                      </div>
+                      {formErrors.metaTitle && (
+                        <p className="text-red-500 text-xs mt-1">{formErrors.metaTitle}</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                        توضیحات متا
+                      </label>
+                      <textarea
+                        value={editingCategory.seo?.metaDescription || ''}
+                        onChange={(e) => {
+                          setEditingCategory({
+                            ...editingCategory,
+                            seo: { 
+                              ...editingCategory.seo, 
+                              metaDescription: e.target.value 
+                            }
+                          });
+                          if (formErrors.metaDescription) setFormErrors({...formErrors, metaDescription: ''});
+                        }}
+                        rows={2}
+                        className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                          formErrors.metaDescription ? 'border-red-500' : 'border-gray-300'
+                        }`}
+                      />
+                      <div className="flex justify-between text-xs text-gray-500 mt-1">
+                        <span>اختیاری</span>
+                        <span>{(editingCategory.seo?.metaDescription || '').length}/160</span>
+                      </div>
+                      {formErrors.metaDescription && (
+                        <p className="text-red-500 text-xs mt-1">{formErrors.metaDescription}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Checkboxes */}
+                <div className="sm:col-span-2 flex flex-col sm:flex-row gap-3 sm:gap-6 pt-2">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={editingCategory.isActive}
+                      onChange={(e) => setEditingCategory({ ...editingCategory, isActive: e.target.checked })}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <span className="text-sm text-gray-700">فعال</span>
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={editingCategory.showOnHomepage}
+                      onChange={(e) => setEditingCategory({ ...editingCategory, showOnHomepage: e.target.checked })}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <span className="text-sm text-gray-700">نمایش در صفحه اصلی</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button
+                  onClick={handleEditCategory}
+                  disabled={actionLoading}
+                  className={`flex-1 py-2.5 rounded-lg font-semibold text-sm sm:text-base flex items-center justify-center gap-2 ${
+                    actionLoading 
+                      ? 'bg-blue-400 cursor-not-allowed' 
+                      : 'bg-green-600 hover:bg-green-700'
+                  } text-white`}
+                >
+                  {actionLoading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      در حال به‌روزرسانی...
+                    </>
+                  ) : 'به‌روزرسانی دسته‌بندی'}
+                </button>
+                <button
+                  onClick={() => {
+                    setEditingCategory(null);
+                    setFormErrors({});
+                  }}
+                  disabled={actionLoading}
+                  className="flex-1 bg-gray-500 hover:bg-gray-600 text-white px-4 sm:px-6 py-2.5 rounded-lg font-semibold transition-colors text-sm sm:text-base"
+                >
+                  انصراف
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Categories List */}
+          <div className="overflow-hidden">
+            {/* Desktop Table */}
+            <div className="hidden lg:block">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      نام دسته‌بندی
+                    </th>
+                    <th className="px-4 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Slug
+                    </th>
+                    <th className="px-4 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      رنگ
+                    </th>
+                    <th className="px-4 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      وضعیت
+                    </th>
+                    <th className="px-4 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      تعداد محصولات
+                    </th>
+                    <th className="px-4 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      عملیات
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
                   {categories.map((category) => (
-                    <div key={category._id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-                      <div className="flex items-start justify-between mb-3">
+                    <tr key={category._id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
                           <div 
-                            className="w-4 h-4 rounded-full ml-2 border border-gray-300"
+                            className="w-4 h-4 rounded-full ml-3 border border-gray-300"
                             style={{ backgroundColor: category.color }}
                           ></div>
-                          <h3 className="font-medium text-gray-900">{category.name}</h3>
-                        </div>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleEditCategoryClick(category)}
-                            disabled={actionLoading}
-                            className="text-blue-600 hover:text-blue-800 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            ویرایش
-                          </button>
-                          <button
-                            onClick={() => handleDeleteCategory(category._id)}
-                            disabled={actionLoading}
-                            className="text-red-600 hover:text-red-800 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            حذف
-                          </button>
-                        </div>
-                      </div>
-                      
-                      <div className="space-y-2 text-sm text-gray-600">
-                        <div className="flex justify-between">
-                          <span>Slug:</span>
-                          <span className="text-gray-900">{category.slug}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>رنگ:</span>
-                          <div className="flex items-center">
-                            <div 
-                              className="w-4 h-4 rounded border border-gray-300 ml-2"
-                              style={{ backgroundColor: category.color }}
-                            ></div>
-                            <span>{category.color}</span>
-                          </div>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>وضعیت:</span>
-                          <div className="flex gap-2">
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs ${
-                              category.isActive 
-                                ? 'bg-green-100 text-green-800' 
-                                : 'bg-red-100 text-red-800'
-                            }`}>
-                              {category.isActive ? 'فعال' : 'غیرفعال'}
-                            </span>
-                            {category.showOnHomepage && (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-800">
-                                صفحه اصلی
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>تعداد محصولات:</span>
-                          <span className="text-gray-900">{category.productsCount}</span>
-                        </div>
-                        {category.description && (
                           <div>
-                            <span className="block mb-1">توضیحات:</span>
-                            <p className="text-gray-900 text-xs line-clamp-2">{category.description}</p>
+                            <div className="text-sm font-medium text-gray-900">{category.name}</div>
+                            <div className="text-sm text-gray-500 truncate max-w-xs">{category.description}</div>
                           </div>
+                        </div>
+                      </td>
+                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {category.slug}
+                      </td>
+                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div 
+                            className="w-6 h-6 rounded border border-gray-300"
+                            style={{ backgroundColor: category.color }}
+                          ></div>
+                          <span className="text-sm text-gray-600 mr-2">{category.color}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            category.isActive 
+                              ? 'bg-green-100 text-green-800' 
+                              : 'bg-red-100 text-red-800'
+                          }`}>
+                            {category.isActive ? 'فعال' : 'غیرفعال'}
+                          </span>
+                          {category.showOnHomepage && (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                              صفحه اصلی
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {category.productsCount}
+                      </td>
+                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <button
+                          onClick={() => handleEditCategoryClick(category)}
+                          disabled={actionLoading}
+                          className="text-blue-600 hover:text-blue-900 ml-4 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          ویرایش
+                        </button>
+                        <button
+                          onClick={() => handleDeleteCategory(category._id)}
+                          disabled={actionLoading}
+                          className="text-red-600 hover:text-red-900 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          حذف
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Cards */}
+            <div className="lg:hidden space-y-4">
+              {categories.map((category) => (
+                <div key={category._id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center">
+                      <div 
+                        className="w-4 h-4 rounded-full ml-2 border border-gray-300"
+                        style={{ backgroundColor: category.color }}
+                      ></div>
+                      <h3 className="font-medium text-gray-900">{category.name}</h3>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleEditCategoryClick(category)}
+                        disabled={actionLoading}
+                        className="text-blue-600 hover:text-blue-800 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        ویرایش
+                      </button>
+                      <button
+                        onClick={() => handleDeleteCategory(category._id)}
+                        disabled={actionLoading}
+                        className="text-red-600 hover:text-red-800 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        حذف
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2 text-sm text-gray-600">
+                    <div className="flex justify-between">
+                      <span>Slug:</span>
+                      <span className="text-gray-900">{category.slug}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>رنگ:</span>
+                      <div className="flex items-center">
+                        <div 
+                          className="w-4 h-4 rounded border border-gray-300 ml-2"
+                          style={{ backgroundColor: category.color }}
+                        ></div>
+                        <span>{category.color}</span>
+                      </div>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>وضعیت:</span>
+                      <div className="flex gap-2">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs ${
+                          category.isActive 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {category.isActive ? 'فعال' : 'غیرفعال'}
+                        </span>
+                        {category.showOnHomepage && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-800">
+                            صفحه اصلی
+                          </span>
                         )}
                       </div>
                     </div>
-                  ))}
+                    <div className="flex justify-between">
+                      <span>تعداد محصولات:</span>
+                      <span className="text-gray-900">{category.productsCount}</span>
+                    </div>
+                    {category.description && (
+                      <div>
+                        <span className="block mb-1">توضیحات:</span>
+                        <p className="text-gray-900 text-xs line-clamp-2">{category.description}</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-
-              {/* Empty State */}
-              {categories.length === 0 && (
-                <div className="text-center py-8 sm:py-12">
-                  <svg className="w-12 h-12 sm:w-16 sm:h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-                  </svg>
-                  <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">دسته‌بندی‌ای وجود ندارد</h3>
-                  <p className="text-gray-500 mb-6 text-sm sm:text-base">برای شروع، اولین دسته‌بندی را اضافه کنید.</p>
-                  <button
-                    onClick={() => setShowAddCategory(true)}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-semibold transition-colors text-sm sm:text-base inline-flex items-center gap-2"
-                  >
-                    افزودن دسته‌بندی اول
-                  </button>
-                </div>
-              )}
+              ))}
             </div>
           </div>
-        )}
 
-        {/* Other tabs remain the same */}
-        {activeTab === 'general' && (
-          <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6">
-            <h2 className="text-lg sm:text-xl font-semibold mb-6">تنظیمات عمومی سایت</h2>
-            <div className="grid grid-cols-1 gap-4 sm:gap-6 mb-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">لوگو سایت</label>
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 sm:p-6 text-center">
-                  <svg className="w-8 h-8 sm:w-12 sm:h-12 mx-auto text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                  <p className="text-xs sm:text-sm text-gray-500">برای آپلود لوگو کلیک کنید</p>
-                  <input type="file" className="hidden" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">نام سایت</label>
-                <input
-                  type="text"
-                  value={siteSettings.siteName}
-                  onChange={(e) => setSiteSettings({ ...siteSettings, siteName: e.target.value })}
-                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+          {/* Empty State */}
+          {categories.length === 0 && (
+            <div className="text-center py-8 sm:py-12">
+              <svg className="w-12 h-12 sm:w-16 sm:h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+              </svg>
+              <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">دسته‌بندی‌ای وجود ندارد</h3>
+              <p className="text-gray-500 mb-6 text-sm sm:text-base">برای شروع، اولین دسته‌بندی را اضافه کنید.</p>
+              <button
+                onClick={() => setShowAddCategory(true)}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-semibold transition-colors text-sm sm:text-base inline-flex items-center gap-2"
+              >
+                افزودن دسته‌بندی اول
+              </button>
             </div>
-            <button
-              onClick={handleSiteSettingsUpdate}
-              className="bg-green-600 hover:bg-green-700 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-semibold transition-colors text-sm sm:text-base w-full sm:w-auto"
-            >
-              ذخیره تنظیمات
-            </button>
-          </div>
-        )}
-
-        {activeTab === 'contact' && (
-          <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6">
-            <h2 className="text-lg sm:text-xl font-semibold mb-6">اطلاعات تماس</h2>
-            <div className="grid grid-cols-1 gap-4 sm:gap-6 mb-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">ایمیل مدیریت</label>
-                <input
-                  type="email"
-                  value={siteSettings.adminEmail}
-                  onChange={(e) => setSiteSettings({ ...siteSettings, adminEmail: e.target.value })}
-                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">ایمیل پشتیبانی</label>
-                <input
-                  type="email"
-                  value={siteSettings.supportEmail}
-                  onChange={(e) => setSiteSettings({ ...siteSettings, supportEmail: e.target.value })}
-                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">تلفن تماس</label>
-                <input
-                  type="text"
-                  value={siteSettings.phone}
-                  onChange={(e) => setSiteSettings({ ...siteSettings, phone: e.target.value })}
-                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">آدرس</label>
-                <textarea
-                  value={siteSettings.address}
-                  onChange={(e) => setSiteSettings({ ...siteSettings, address: e.target.value })}
-                  rows={3}
-                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-            <button
-              onClick={handleSiteSettingsUpdate}
-              className="bg-green-600 hover:bg-green-700 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-semibold transition-colors text-sm sm:text-base w-full sm:w-auto"
-            >
-              ذخیره اطلاعات تماس
-            </button>
-          </div>
-        )}
-
-        {activeTab === 'footer' && (
-          <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6">
-            <h2 className="text-lg sm:text-xl font-semibold mb-6">تنظیمات فوتر</h2>
-            <div className="grid grid-cols-1 gap-4 sm:gap-6 mb-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">متن فوتر</label>
-                <textarea
-                  value={siteSettings.footerText}
-                  onChange={(e) => setSiteSettings({ ...siteSettings, footerText: e.target.value })}
-                  rows={3}
-                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">اینستاگرام</label>
-                <input
-                  type="url"
-                  value={siteSettings.socialLinks.instagram}
-                  onChange={(e) => setSiteSettings({ 
-                    ...siteSettings, 
-                    socialLinks: { ...siteSettings.socialLinks, instagram: e.target.value }
-                  })}
-                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="https://instagram.com/username"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">تلگرام</label>
-                <input
-                  type="url"
-                  value={siteSettings.socialLinks.telegram}
-                  onChange={(e) => setSiteSettings({ 
-                    ...siteSettings, 
-                    socialLinks: { ...siteSettings.socialLinks, telegram: e.target.value }
-                  })}
-                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="https://t.me/username"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">واتساپ</label>
-                <input
-                  type="text"
-                  value={siteSettings.socialLinks.whatsapp}
-                  onChange={(e) => setSiteSettings({ 
-                    ...siteSettings, 
-                    socialLinks: { ...siteSettings.socialLinks, whatsapp: e.target.value }
-                  })}
-                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="شماره واتساپ"
-                />
-              </div>
-            </div>
-            <button
-              onClick={handleSiteSettingsUpdate}
-              className="bg-green-600 hover:bg-green-700 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-semibold transition-colors text-sm sm:text-base w-full sm:w-auto"
-            >
-              ذخیره تنظیمات فوتر
-            </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );

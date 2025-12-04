@@ -1515,7 +1515,7 @@ export default function ProductManager() {
                   >
                     <option value="regular">معمولی</option>
                     <option value="discount">تخفیف‌دار</option>
-                    <option value="premium">پریمیوم</option>
+                    <option value="premium">توصیه شده</option>
                   </select>
                 </div>
 
