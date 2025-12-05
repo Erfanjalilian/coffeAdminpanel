@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useAuth } from '@/contaxt/AuthContext'; // Adjust path if needed
 
 interface Category {
   seo: {
@@ -39,6 +40,11 @@ interface CategoriesResponse {
 }
 
 export default function SiteSettingsAdmin() {
+  const { isAuthenticated, login, logout, isLoading } = useAuth();
+  const [password, setPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -66,8 +72,10 @@ export default function SiteSettingsAdmin() {
   });
 
   useEffect(() => {
-    fetchCategories();
-  }, []);
+    if (isAuthenticated) {
+      fetchCategories();
+    }
+  }, [isAuthenticated]);
 
   const fetchCategories = async () => {
     try {
@@ -92,6 +100,121 @@ export default function SiteSettingsAdmin() {
     }
   };
 
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoggingIn(true);
+    setLoginError('');
+    
+    setTimeout(() => {
+      const success = login(password);
+      if (!success) {
+        setLoginError('رمز عبور اشتباه است');
+      }
+      setIsLoggingIn(false);
+    }, 500); // Simulate network delay
+  };
+
+  const handleLogout = () => {
+    if (confirm('آیا از خروج اطمینان دارید؟')) {
+      logout();
+      setPassword('');
+    }
+  };
+
+  // Loading state for auth check
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex justify-center items-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  // Login form if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <div dir="rtl" className="min-h-screen bg-gray-50 flex flex-col justify-center items-center px-4 py-12">
+        <div className="w-full max-w-md">
+          {/* Header */}
+          <div className="text-center mb-8">
+            <div className="bg-blue-600 text-white w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold mx-auto mb-4">
+              A
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900">ورود به پنل مدیریت</h1>
+            <p className="text-gray-600 mt-2">لطفاً برای دسترسی به پنل مدیریت رمز عبور را وارد کنید</p>
+          </div>
+
+          {/* Login Form */}
+          <div className="bg-white rounded-xl shadow-sm p-6 sm:p-8">
+            <form onSubmit={handleLogin}>
+              <div className="mb-6">
+                <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-2">
+                  نام کاربری
+                </label>
+                <input
+                  id="username"
+                  type="text"
+                  value="admin"
+                  readOnly
+                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 cursor-not-allowed"
+                />
+                <p className="text-xs text-gray-500 mt-1">نام کاربری ثابت است</p>
+              </div>
+
+              <div className="mb-6">
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+                  رمز عبور *
+                </label>
+                <input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (loginError) setLoginError('');
+                  }}
+                  className={`w-full px-3 py-2 text-sm sm:text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    loginError ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                  placeholder="رمز عبور را وارد کنید"
+                  required
+                  autoFocus
+                />
+                {loginError && (
+                  <p className="text-red-500 text-xs mt-1">{loginError}</p>
+                )}
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoggingIn}
+                className={`w-full py-3 rounded-lg font-semibold text-sm sm:text-base flex items-center justify-center gap-2 ${
+                  isLoggingIn 
+                    ? 'bg-blue-400 cursor-not-allowed' 
+                    : 'bg-blue-600 hover:bg-blue-700'
+                } text-white transition-colors`}
+              >
+                {isLoggingIn ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    در حال بررسی...
+                  </>
+                ) : 'ورود به پنل مدیریت'}
+              </button>
+
+              <div className="mt-6 pt-6 border-t border-gray-200">
+                <p className="text-center text-xs text-gray-500">
+                  رمز عبور پیشفرض: 1383
+                </p>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Original admin panel content (only shown when authenticated)
   const validateForm = (formData: any, isEdit: boolean = false) => {
     const errors: Record<string, string> = {};
 
@@ -354,12 +477,24 @@ export default function SiteSettingsAdmin() {
     <div dir="rtl" className="min-h-screen bg-gray-50 py-4 sm:py-8">
       <div className="container mx-auto px-3 sm:px-6 lg:px-8 max-w-7xl">
         
-        {/* Header */}
+        {/* Header with Logout Button */}
         <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6 mb-6 sm:mb-8">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
               <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">مدیریت دسته‌بندی‌ها</h1>
               <p className="text-gray-600 mt-2 text-xs sm:text-sm lg:text-base">مدیریت و سازماندهی دسته‌بندی‌های محصولات</p>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2 text-sm text-gray-600">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <span>وضعیت: وارد شده</span>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-semibold text-sm transition-colors"
+              >
+                خروج از پنل
+              </button>
             </div>
           </div>
         </div>
