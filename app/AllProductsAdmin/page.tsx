@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 
-// Interfaces
+// Interfaces (unchanged)
 interface Category {
   seo: {
     metaKeywords: string[];
@@ -156,6 +156,10 @@ export default function ProductManager() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [featuresInput, setFeaturesInput] = useState('');
   const [serverErrors, setServerErrors] = useState<ValidationError[]>([]);
+  
+  // FIX 2: Add state for discount toggle
+  const [applyDiscount, setApplyDiscount] = useState(false);
+  const [applyEditDiscount, setApplyEditDiscount] = useState(false);
 
   // New product state
   const [newProduct, setNewProduct] = useState<NewProductFormData>({
@@ -293,7 +297,14 @@ export default function ProductManager() {
     // Optional fields with values
     if (productData.slug) formData.append('slug', productData.slug);
     if (productData.originalPrice) formData.append('originalPrice', productData.originalPrice.toString());
-    if (productData.discount) formData.append('discount', productData.discount.toString());
+    
+    // FIX 2: Only send discount if applyDiscount is true and discount > 0
+    if (applyDiscount && productData.discount > 0) {
+      formData.append('discount', productData.discount.toString());
+    } else {
+      formData.append('discount', '0'); // Send 0 when no discount
+    }
+    
     if (productData.weight) formData.append('weight', productData.weight.toString());
     if (productData.ingredients) formData.append('ingredients', productData.ingredients);
     if (productData.benefits) formData.append('benefits', productData.benefits);
@@ -328,7 +339,7 @@ export default function ProductManager() {
       return;
     }
 
-    if (newProduct.discount < 0 || newProduct.discount > 100) {
+    if (applyDiscount && (newProduct.discount < 0 || newProduct.discount > 100)) {
       alert('تخفیف باید بین ۰ تا ۱۰۰ درصد باشد');
       return;
     }
@@ -343,6 +354,8 @@ export default function ProductManager() {
     const productData = {
       ...newProduct,
       slug: slugToUse,
+      // FIX 2: Set discount to 0 if not applying discount
+      discount: applyDiscount ? newProduct.discount : 0
     };
 
     try {
@@ -353,6 +366,7 @@ export default function ProductManager() {
       console.log('Endpoint:', API_BASE_URL);
       console.log('Method: POST');
       console.log('Product data:', productData);
+      console.log('Apply discount:', applyDiscount);
 
       const formData = createFormData(productData);
       
@@ -433,6 +447,7 @@ export default function ProductManager() {
         recommended: false,
       });
       setFeaturesInput('');
+      setApplyDiscount(false); // Reset discount toggle
       setServerErrors([]);
 
       // Refresh products list
@@ -452,6 +467,8 @@ export default function ProductManager() {
     setEditingProduct(product);
     setShowAddForm(false);
     setServerErrors([]);
+    // FIX 2: Initialize edit discount toggle based on product data
+    setApplyEditDiscount(product.discount > 0);
   };
 
   const handleSaveEdit = async () => {
@@ -471,7 +488,8 @@ export default function ProductManager() {
         price: editingProduct.price,
         stock: editingProduct.stock,
         originalPrice: editingProduct.originalPrice || 0,
-        discount: editingProduct.discount || 0,
+        // FIX 2: Only send discount if toggle is enabled
+        discount: applyEditDiscount ? editingProduct.discount : 0,
         weight: editingProduct.weight || 0,
         ingredients: editingProduct.ingredients || '',
         benefits: editingProduct.benefits || '',
@@ -498,6 +516,7 @@ export default function ProductManager() {
       console.log('Method: PATCH');
       console.log('Product ID:', editingProduct._id);
       console.log('Update data:', updateData);
+      console.log('Apply edit discount:', applyEditDiscount);
 
       const formData = new FormData();
       
@@ -569,6 +588,7 @@ export default function ProductManager() {
       // Update local state by fetching fresh data
       await fetchProducts();
       setEditingProduct(null);
+      setApplyEditDiscount(false); // Reset edit discount toggle
       setServerErrors([]);
       alert('محصول با موفقیت به‌روزرسانی شد');
     } catch (err) {
@@ -673,6 +693,17 @@ export default function ProductManager() {
       features: updatedFeatures
     });
   };
+
+  // Reset form when showing add form
+  useEffect(() => {
+    if (showAddForm) {
+      setApplyDiscount(false);
+      setNewProduct(prev => ({
+        ...prev,
+        discount: 0
+      }));
+    }
+  }, [showAddForm]);
 
   return (
     <div dir="rtl" className="min-h-screen bg-gray-50 py-8">
@@ -909,24 +940,58 @@ export default function ProductManager() {
                   />
                 </div>
 
-                {/* Discount */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    تخفیف (%)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={newProduct.discount || ''}
-                    onChange={(e) => setNewProduct({...newProduct, discount: Number(e.target.value)})}
-                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                      serverErrors.some(e => e.path === 'discount') 
-                        ? 'border-red-500' 
-                        : 'border-gray-300'
-                    }`}
-                    placeholder="درصد تخفیف"
-                  />
+                {/* FIX 2: Discount Toggle and Field */}
+                <div className="col-span-1 md:col-span-2">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id="applyDiscount"
+                        checked={applyDiscount}
+                        onChange={(e) => {
+                          setApplyDiscount(e.target.checked);
+                          if (!e.target.checked) {
+                            // Reset discount to 0 when toggle is off
+                            setNewProduct({...newProduct, discount: 0});
+                          }
+                        }}
+                        className="h-4 w-4 text-blue-600 rounded ml-2"
+                      />
+                      <label htmlFor="applyDiscount" className="text-sm font-medium text-gray-700">
+                        اعمال تخفیف به محصول
+                      </label>
+                    </div>
+                    <span className="text-sm text-gray-500">
+                      {applyDiscount ? '(فعال)' : '(غیرفعال)'}
+                    </span>
+                  </div>
+                  
+                  {applyDiscount && (
+                    <div className="mt-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        درصد تخفیف *
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="100"
+                        value={newProduct.discount || ''}
+                        onChange={(e) => setNewProduct({...newProduct, discount: Number(e.target.value)})}
+                        className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                          serverErrors.some(e => e.path === 'discount') 
+                            ? 'border-red-500' 
+                            : 'border-gray-300'
+                        }`}
+                        placeholder="درصد تخفیف (۱ تا ۱۰۰)"
+                        required={applyDiscount}
+                      />
+                      {newProduct.discount > 0 && newProduct.originalPrice > 0 && (
+                        <p className="text-sm text-green-600 mt-2">
+                          قیمت پس از تخفیف: {formatPrice(newProduct.originalPrice * (1 - newProduct.discount/100))}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Stock */}
@@ -1229,7 +1294,7 @@ export default function ProductManager() {
             <div className="flex gap-3 flex-col sm:flex-row mt-8">
               <button
                 onClick={handleAddProduct}
-                disabled={isSubmitting || !newProduct.name || !newProduct.price || !newProduct.stock || !newProduct.category || !newProduct.brand || !newProduct.description || !newProduct.positiveFeature}
+                disabled={isSubmitting || !newProduct.name || !newProduct.price || !newProduct.stock || !newProduct.category || !newProduct.brand || !newProduct.description || !newProduct.positiveFeature || (applyDiscount && !newProduct.discount)}
                 className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-8 py-3 rounded-lg font-semibold transition-colors flex-1"
               >
                 {isSubmitting ? 'در حال ذخیره...' : 'ذخیره محصول'}
@@ -1238,6 +1303,7 @@ export default function ProductManager() {
                 onClick={() => {
                   setShowAddForm(false);
                   setServerErrors([]);
+                  setApplyDiscount(false);
                 }}
                 disabled={isSubmitting}
                 className="bg-gray-500 hover:bg-gray-600 disabled:bg-gray-400 text-white px-8 py-3 rounded-lg font-semibold transition-colors flex-1"
@@ -1447,24 +1513,64 @@ export default function ProductManager() {
                   />
                 </div>
 
-                {/* Discount */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">تخفیف (%)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={editingProduct.discount || 0}
-                    onChange={(e) => setEditingProduct({
-                      ...editingProduct,
-                      discount: Number(e.target.value)
-                    })}
-                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                      serverErrors.some(e => e.path === 'discount') 
-                        ? 'border-red-500' 
-                        : 'border-gray-300'
-                    }`}
-                  />
+                {/* FIX 2: Discount Toggle for Edit Form */}
+                <div className="col-span-1 md:col-span-2">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id="applyEditDiscount"
+                        checked={applyEditDiscount}
+                        onChange={(e) => {
+                          setApplyEditDiscount(e.target.checked);
+                          if (!e.target.checked) {
+                            // Reset discount to 0 when toggle is off
+                            setEditingProduct({
+                              ...editingProduct,
+                              discount: 0
+                            });
+                          }
+                        }}
+                        className="h-4 w-4 text-blue-600 rounded ml-2"
+                      />
+                      <label htmlFor="applyEditDiscount" className="text-sm font-medium text-gray-700">
+                        اعمال تخفیف به محصول
+                      </label>
+                    </div>
+                    <span className="text-sm text-gray-500">
+                      {applyEditDiscount ? '(فعال)' : '(غیرفعال)'}
+                    </span>
+                  </div>
+                  
+                  {applyEditDiscount && (
+                    <div className="mt-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        درصد تخفیف *
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="100"
+                        value={editingProduct.discount || 0}
+                        onChange={(e) => setEditingProduct({
+                          ...editingProduct,
+                          discount: Number(e.target.value)
+                        })}
+                        className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                          serverErrors.some(e => e.path === 'discount') 
+                            ? 'border-red-500' 
+                            : 'border-gray-300'
+                        }`}
+                        placeholder="درصد تخفیف (۱ تا ۱۰۰)"
+                        required={applyEditDiscount}
+                      />
+                      {editingProduct.discount > 0 && editingProduct.originalPrice > 0 && (
+                        <p className="text-sm text-green-600 mt-2">
+                          قیمت پس از تخفیف: {formatPrice(editingProduct.originalPrice * (1 - editingProduct.discount/100))}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Weight */}
@@ -1515,7 +1621,6 @@ export default function ProductManager() {
                   >
                     <option value="regular">معمولی</option>
                     <option value="discount">تخفیف‌دار</option>
-               
                   </select>
                 </div>
 
@@ -1728,6 +1833,7 @@ export default function ProductManager() {
                 onClick={() => {
                   setEditingProduct(null);
                   setServerErrors([]);
+                  setApplyEditDiscount(false);
                 }}
                 disabled={isSubmitting}
                 className="bg-gray-500 hover:bg-gray-600 disabled:bg-gray-400 text-white px-8 py-3 rounded-lg font-semibold transition-colors flex-1"
@@ -1891,9 +1997,15 @@ export default function ProductManager() {
                           </span>
                         </div>
                         
-                        {/* Action Buttons */}
+                        {/* FIX 1: Action Buttons - Added Edit button */}
                         <div className="flex gap-3">
-                         
+                          <button
+                            onClick={() => handleEdit(product)}
+                            disabled={isSubmitting}
+                            className="bg-blue-100 hover:bg-blue-200 disabled:bg-blue-50 disabled:text-blue-300 text-blue-700 px-4 py-2 rounded-lg font-medium transition-colors text-sm"
+                          >
+                            ویرایش
+                          </button>
                           <button
                             onClick={() => handleDelete(product._id)}
                             disabled={isSubmitting}
